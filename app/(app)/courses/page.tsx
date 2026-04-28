@@ -40,11 +40,27 @@ export default function CoursesPage() {
         {loading && <p className="text-sm text-gray-500 text-center py-8">Söker...</p>}
 
         {!loading && results.length === 0 && query.length >= 2 && (
-          <p className="text-sm text-gray-500 text-center py-8">Inga banor hittades.</p>
+          <div className="text-center py-8 space-y-3">
+            <p className="text-sm text-gray-500">Inga banor hittades för "{query}".</p>
+            <Link
+              href="/courses/new"
+              className="inline-block bg-green-700 text-white rounded-2xl px-5 py-2 text-sm font-medium"
+            >
+              + Skapa bana manuellt
+            </Link>
+          </div>
         )}
 
         {!loading && query.length < 2 && (
-          <p className="text-sm text-gray-400 text-center py-12">Skriv minst 2 bokstäver för att söka.</p>
+          <div className="text-center py-12 space-y-4">
+            <p className="text-sm text-gray-400">Skriv minst 2 bokstäver för att söka bland svenska banor.</p>
+            <Link
+              href="/courses/new"
+              className="inline-block border border-green-300 text-green-700 rounded-2xl px-5 py-2 text-sm font-medium"
+            >
+              + Skapa bana manuellt
+            </Link>
+          </div>
         )}
 
         <ul className="space-y-2">
