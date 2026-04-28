@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
+import { generateHoles } from "@/lib/generate-holes";
 
 type Hole = { id: string; hole_number: number; par: number; stroke_index: number | null; distance_m: number | null };
 type Player = { user_id: string; name: string; team: string | null };
@@ -38,11 +39,33 @@ export default function ScorecardPage() {
       setFormat(round.format);
       setCourseName((round as any).courses?.name ?? "");
 
-      const { data: holesData } = await supabase
+      let { data: holesData } = await supabase
         .from("holes")
         .select("id, hole_number, par, stroke_index, distance_m")
         .eq("course_id", round.course_id)
         .order("hole_number");
+
+      // Auto-generate holes if the course has none
+      if (!holesData || holesData.length === 0) {
+        const { data: courseData } = await supabase
+          .from("courses")
+          .select("holes_count, par_total")
+          .eq("id", round.course_id)
+          .single();
+
+        if (courseData) {
+          const generated = generateHoles(
+            round.course_id,
+            courseData.holes_count,
+            courseData.par_total
+          );
+          const { data: inserted } = await supabase
+            .from("holes")
+            .insert(generated)
+            .select("id, hole_number, par, stroke_index, distance_m");
+          holesData = inserted;
+        }
+      }
 
       const { data: playersData } = await supabase
         .from("round_players")
@@ -93,23 +116,6 @@ export default function ScorecardPage() {
 
   if (loading) return <div className="min-h-screen flex items-center justify-center text-gray-500">Laddar...</div>;
 
-  if (holes.length === 0) {
-    return (
-      <div className="min-h-screen bg-green-50">
-        <header className="bg-green-800 text-white px-4 py-4">
-          <button onClick={() => router.push("/dashboard")} className="text-sm opacity-75 mb-1">← Hem</button>
-          <h1 className="text-lg font-bold">{courseName}</h1>
-        </header>
-        <main className="px-4 py-8 max-w-lg mx-auto text-center">
-          <p className="text-gray-600 mb-2">Den här banan har inga håldata inlagda än.</p>
-          <p className="text-sm text-gray-500">Håldata laddas automatiskt när du söker via Golf Course API (kräver API-nyckel).</p>
-          <button onClick={() => router.push("/dashboard")} className="mt-6 bg-green-700 text-white rounded-xl px-6 py-2 text-sm">
-            Tillbaka till hem
-          </button>
-        </main>
-      </div>
-    );
-  }
 
   if (currentHole >= holes.length) {
     // Summary view
