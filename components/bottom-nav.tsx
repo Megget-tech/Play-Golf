@@ -6,6 +6,7 @@ const links = [
   { href: "/dashboard", label: "Hem", icon: "🏠" },
   { href: "/courses", label: "Banor", icon: "🗺️" },
   { href: "/rounds/new", label: "Spela", icon: "⛳" },
+  { href: "/tournaments", label: "Tävlingar", icon: "🏆" },
   { href: "/profile", label: "Profil", icon: "👤" },
 ];
 
