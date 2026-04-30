@@ -5,8 +5,9 @@ import { createClient } from "@/lib/supabase";
 import { generateHoles } from "@/lib/generate-holes";
 
 type Hole = { id: string; hole_number: number; par: number; stroke_index: number | null; distance_m: number | null };
-type Player = { user_id: string; name: string; team: string | null };
+type Player = { user_id: string; name: string; team: string | null; tee_id: string | null; tee_name: string | null; tee_color: string | null };
 type ScoreMap = Record<string, Record<string, number>>; // holeId -> userId -> strokes
+type TeeDistances = Record<string, Record<string, number>>; // tee_id -> hole_id -> distance_m
 
 export default function ScorecardPage() {
   const { id } = useParams<{ id: string }>();
@@ -24,6 +25,7 @@ export default function ScorecardPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+  const [teeDistances, setTeeDistances] = useState<TeeDistances>({});
 
   useEffect(() => {
     async function load() {
@@ -71,7 +73,7 @@ export default function ScorecardPage() {
 
       const { data: playersData } = await supabase
         .from("round_players")
-        .select("user_id, team, profiles(name)")
+        .select("user_id, team, tee_id, profiles(name), course_tees(name, color)")
         .eq("round_id", id);
 
       const { data: scoresData } = await supabase
@@ -94,7 +96,30 @@ export default function ScorecardPage() {
       });
 
       setHoles(sorted);
-      setPlayers((playersData ?? []).map((p: any) => ({ user_id: p.user_id, name: p.profiles?.name ?? "Okänd", team: p.team })));
+      const mappedPlayers = (playersData ?? []).map((p: any) => ({
+        user_id: p.user_id,
+        name: p.profiles?.name ?? "Okänd",
+        team: p.team,
+        tee_id: p.tee_id ?? null,
+        tee_name: p.course_tees?.name ?? null,
+        tee_color: p.course_tees?.color ?? null,
+      }));
+      setPlayers(mappedPlayers);
+
+      // Fetch tee distances for all unique tees in use
+      const teeIds = [...new Set(mappedPlayers.map((p: any) => p.tee_id).filter(Boolean))];
+      if (teeIds.length > 0) {
+        const { data: distData } = await supabase
+          .from("hole_tee_distances")
+          .select("tee_id, hole_id, distance_m")
+          .in("tee_id", teeIds);
+        const distMap: TeeDistances = {};
+        for (const d of distData ?? []) {
+          if (!distMap[d.tee_id]) distMap[d.tee_id] = {};
+          distMap[d.tee_id][d.hole_id] = d.distance_m;
+        }
+        setTeeDistances(distMap);
+      }
       setScores(scoreMap);
       setLoading(false);
     }
@@ -169,8 +194,7 @@ export default function ScorecardPage() {
           <h1 className="text-lg font-bold">Hål {hole.hole_number}</h1>
         </div>
         <div className="text-right">
-          <p className="text-xs opacity-75">Par {hole.par}</p>
-          {hole.distance_m && <p className="text-xs opacity-75">{hole.distance_m} m</p>}
+          <p className="text-xs opacity-75">Par {hole.par} · SI {hole.stroke_index ?? "—"}</p>
           <p className="text-xs opacity-75">{currentHole + 1}/{holes.length}</p>
         </div>
       </header>
@@ -192,11 +216,27 @@ export default function ScorecardPage() {
               <div className="flex items-center justify-between mb-3">
                 <div>
                   <p className="font-semibold text-gray-800">{p.name}</p>
-                  {format === "matchplay" && p.team && (
-                    <span className={`text-xs font-bold ${p.team === "red" ? "text-red-600" : "text-blue-600"}`}>
-                      {p.team === "red" ? "RÖTT" : "BLÅTT"}
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2 mt-0.5">
+                    {p.tee_name && (
+                      <span className="flex items-center gap-1 text-xs text-gray-500">
+                        <span className={`w-2.5 h-2.5 rounded-full inline-block ${
+                          p.tee_color === "red" ? "bg-red-500" :
+                          p.tee_color === "yellow" ? "bg-yellow-400" :
+                          p.tee_color === "blue" ? "bg-blue-500" :
+                          p.tee_color === "white" ? "bg-white border border-gray-300" : "bg-gray-400"
+                        }`} />
+                        {p.tee_name}
+                        {p.tee_id && teeDistances[p.tee_id]?.[hole.id] && (
+                          <span>· {teeDistances[p.tee_id][hole.id]} m</span>
+                        )}
+                      </span>
+                    )}
+                    {format === "matchplay" && p.team && (
+                      <span className={`text-xs font-bold ${p.team === "red" ? "text-red-600" : "text-blue-600"}`}>
+                        {p.team === "red" ? "RÖTT" : "BLÅTT"}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <p className={`text-sm font-medium ${diff > 0 ? "text-red-500" : diff < 0 ? "text-green-600" : "text-gray-400"}`}>
                   {total > 0 ? (diff > 0 ? `+${diff}` : diff === 0 ? "Par" : diff) : "-"}
