@@ -19,6 +19,7 @@ function NewRoundInner() {
   const tournamentId = params.get("tournamentId") ?? "";
 
   const [format, setFormat] = useState("stroke");
+  const [startingHole, setStartingHole] = useState<1 | 10>(1);
   const [players, setPlayers] = useState<Player[]>([]);
   const [search, setSearch] = useState("");
   const [searchResults, setSearchResults] = useState<Player[]>([]);
@@ -77,6 +78,7 @@ function NewRoundInner() {
       .insert({
         course_id: courseId,
         format,
+        starting_hole: startingHole,
         created_by: userId,
         date: new Date().toISOString().slice(0, 10),
         tournament_id: tournamentId || null,
@@ -138,6 +140,24 @@ function NewRoundInner() {
               >
                 <p className="font-semibold text-sm">{f.label}</p>
                 <p className={`text-xs mt-0.5 ${format === f.value ? "text-green-100" : "text-gray-500"}`}>{f.desc}</p>
+              </button>
+            ))}
+          </div>
+        </section>
+
+        {/* Starting hole */}
+        <section>
+          <h2 className="text-xs font-semibold text-gray-500 uppercase mb-2">Starthål</h2>
+          <div className="flex gap-2">
+            {([1, 10] as const).map((h) => (
+              <button
+                key={h}
+                onClick={() => setStartingHole(h)}
+                className={`flex-1 rounded-2xl py-3 text-sm font-semibold shadow transition-colors ${
+                  startingHole === h ? "bg-green-700 text-white" : "bg-white text-gray-700"
+                }`}
+              >
+                Hål {h}
               </button>
             ))}
           </div>

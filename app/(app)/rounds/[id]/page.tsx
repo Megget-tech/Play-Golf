@@ -20,6 +20,7 @@ export default function ScorecardPage() {
   const [courseId, setCourseId] = useState<string | null>(null);
   const [courseName, setCourseName] = useState("");
   const [format, setFormat] = useState("stroke");
+  const [startingHole, setStartingHole] = useState(1);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
@@ -31,12 +32,13 @@ export default function ScorecardPage() {
 
       const { data: round } = await supabase
         .from("rounds")
-        .select("course_id, format, courses(name)")
+        .select("course_id, format, starting_hole, courses(name)")
         .eq("id", id)
         .single();
       if (!round) return;
       setCourseId(round.course_id);
       setFormat(round.format);
+      setStartingHole(round.starting_hole ?? 1);
       setCourseName((round as any).courses?.name ?? "");
 
       let { data: holesData } = await supabase
@@ -83,7 +85,15 @@ export default function ScorecardPage() {
         scoreMap[s.hole_id][s.user_id] = s.strokes;
       }
 
-      setHoles(holesData ?? []);
+      // Sort holes starting from starting_hole, wrapping around
+      const sh = round.starting_hole ?? 1;
+      const sorted = [...(holesData ?? [])].sort((a, b) => {
+        const ai = ((a.hole_number - sh + 18) % 18);
+        const bi = ((b.hole_number - sh + 18) % 18);
+        return ai - bi;
+      });
+
+      setHoles(sorted);
       setPlayers((playersData ?? []).map((p: any) => ({ user_id: p.user_id, name: p.profiles?.name ?? "Okänd", team: p.team })));
       setScores(scoreMap);
       setLoading(false);
