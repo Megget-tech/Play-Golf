@@ -4,7 +4,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase";
 
-type Tournament = { id: string; name: string; format: string; start_date: string | null };
+type Tournament = { id: string; name: string; format: string; start_date: string | null; completed_at: string | null };
 type TeamPlayer = { user_id: string; name: string; handicap_index: number | null; team: "red" | "blue" };
 type RCMatch = { id: string; session_id: string; red_player1: string | null; red_player2: string | null; blue_player1: string | null; blue_player2: string | null; result: "red" | "blue" | "halved" | null };
 type RCSession = { id: string; tournament_id: string; session_type: "foursomes" | "fourballs" | "singles"; name: string | null; sort_order: number; matches: RCMatch[] };
@@ -41,7 +41,7 @@ export default function TournamentPage() {
   }, [id]);
 
   async function load() {
-    const { data: t } = await supabase.from("tournaments").select("id, name, format, start_date").eq("id", id).single();
+    const { data: t } = await supabase.from("tournaments").select("id, name, format, start_date, completed_at").eq("id", id).single();
     setTournament(t);
     if (!t) { setLoading(false); return; }
 
@@ -148,6 +148,17 @@ export default function TournamentPage() {
     setPlayerSearch(""); setSearchResults([]); setAddingToTeam(null);
   }
 
+  async function closeTournament() {
+    if (!confirm("Avsluta tävlingen? Inga fler sessioner kan läggas till.")) return;
+    await supabase.from("tournaments").update({ completed_at: new Date().toISOString() }).eq("id", id);
+    setTournament((prev) => prev ? { ...prev, completed_at: new Date().toISOString() } : prev);
+  }
+
+  async function reopenTournament() {
+    await supabase.from("tournaments").update({ completed_at: null }).eq("id", id);
+    setTournament((prev) => prev ? { ...prev, completed_at: null } : prev);
+  }
+
   async function removeFromTeam(userId: string, team: "red" | "blue") {
     await supabase.from("ryder_cup_teams").delete().eq("tournament_id", id).eq("user_id", userId);
     if (team === "red") setTeamRed((prev) => prev.filter((p) => p.user_id !== userId));
@@ -159,10 +170,13 @@ export default function TournamentPage() {
 
   // ── Points ─────────────────────────────────────────────────────────────────
   const allMatches = sessions.flatMap((s) => s.matches);
+  const completedMatches = allMatches.filter((m) => m.result !== null);
   const redPoints = allMatches.reduce((acc, m) => acc + (m.result === "red" ? 1 : m.result === "halved" ? 0.5 : 0), 0);
   const bluePoints = allMatches.reduce((acc, m) => acc + (m.result === "blue" ? 1 : m.result === "halved" ? 0.5 : 0), 0);
   const totalMatches = allMatches.length;
   const toWin = totalMatches / 2 + 0.5;
+  const isCompleted = !!tournament?.completed_at;
+  const winner = redPoints > bluePoints ? "red" : bluePoints > redPoints ? "blue" : totalMatches > 0 ? "tied" : null;
 
   // Name lookup
   const nameMap: Record<string, string> = {};
@@ -198,6 +212,26 @@ export default function TournamentPage() {
 
         <main className="px-4 py-4 max-w-lg mx-auto space-y-6">
 
+          {/* Winner banner */}
+          {isCompleted && winner && (
+            <div className={`rounded-2xl px-4 py-4 text-center ${
+              winner === "red" ? "bg-red-600 text-white" :
+              winner === "blue" ? "bg-blue-600 text-white" :
+              "bg-gray-700 text-white"
+            }`}>
+              <p className="text-xs font-semibold opacity-75 mb-1">TÄVLINGEN AVSLUTAD</p>
+              <p className="text-2xl font-bold">
+                {winner === "red" ? "🏆 Rött lag vinner!" :
+                 winner === "blue" ? "🏆 Blått lag vinner!" :
+                 "Oavgjort – lika poäng"}
+              </p>
+              <p className="text-lg font-semibold mt-1 opacity-90">
+                {redPoints % 1 === 0 ? redPoints : redPoints.toFixed(1)} – {bluePoints % 1 === 0 ? bluePoints : bluePoints.toFixed(1)}
+              </p>
+              <button onClick={reopenTournament} className="mt-3 text-xs opacity-60 underline">Återöppna tävling</button>
+            </div>
+          )}
+
           {/* Scoreboard */}
           <div className="bg-white rounded-2xl shadow p-4">
             <div className="flex items-stretch gap-3">
@@ -214,6 +248,11 @@ export default function TournamentPage() {
                 <p className={`text-5xl font-bold ${bluePoints > redPoints ? "text-white" : "text-blue-700"}`}>{bluePoints % 1 === 0 ? bluePoints : bluePoints.toFixed(1)}</p>
               </div>
             </div>
+            {totalMatches > 0 && !isCompleted && (
+              <p className="text-xs text-center text-gray-400 mt-2">
+                {completedMatches.length}/{totalMatches} matcher klara
+              </p>
+            )}
           </div>
 
           {/* Teams */}
@@ -239,7 +278,6 @@ export default function TournamentPage() {
                     {addingToTeam === team ? (
                       <div>
                         <input
-                          autoFocus
                           type="search"
                           placeholder="Sök spelare..."
                           value={playerSearch}
@@ -273,7 +311,9 @@ export default function TournamentPage() {
           <section>
             <div className="flex items-center justify-between mb-2">
               <h2 className="text-xs font-semibold text-gray-500 uppercase">Sessioner</h2>
-              <Link href={`/tournaments/${id}/sessions/new`} className="text-xs font-semibold text-green-700">+ Ny session</Link>
+              {!isCompleted && (
+                <Link href={`/tournaments/${id}/sessions/new`} className="text-xs font-semibold text-green-700">+ Ny session</Link>
+              )}
             </div>
 
             {sessions.length === 0 ? (
@@ -315,6 +355,16 @@ export default function TournamentPage() {
                   );
                 })}
               </div>
+            )}
+
+            {/* Close tournament button */}
+            {!isCompleted && sessions.length > 0 && (
+              <button
+                onClick={closeTournament}
+                className="w-full mt-4 border border-gray-300 rounded-2xl py-3 text-sm font-semibold text-gray-600 hover:border-red-300 hover:text-red-600 transition-colors"
+              >
+                Avsluta tävling
+              </button>
             )}
           </section>
         </main>
