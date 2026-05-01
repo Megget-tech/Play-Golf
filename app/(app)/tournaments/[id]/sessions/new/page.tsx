@@ -89,7 +89,6 @@ export default function NewSessionPage() {
         tournament_id: tournamentId,
         session_type: sessionType,
         name: sessionName.trim() || null,
-        sort_order: Date.now(),
       })
       .select("id").single();
 
