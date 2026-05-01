@@ -9,6 +9,20 @@ type Player = { user_id: string; name: string; handicap_index: number | null; te
 type ScoreMap = Record<string, Record<string, number>>;
 type TeeDistances = Record<string, Record<string, number>>;
 
+function courseHcp(handicap_index: number | null): number {
+  return Math.round(handicap_index ?? 0);
+}
+
+function strokesOnHole(hcp: number, strokeIndex: number | null): number {
+  if (!strokeIndex) return 0;
+  return Math.floor(hcp / 18) + (strokeIndex <= hcp % 18 ? 1 : 0);
+}
+
+function stablefordPoints(strokes: number, par: number, extraStrokes: number): number {
+  if (!strokes) return 0;
+  return Math.max(0, par + extraStrokes - strokes + 2);
+}
+
 function scoreBadge(strokes: number, par: number) {
   const diff = strokes - par;
   if (strokes === 1) return { label: "HiO", cls: "bg-yellow-400 text-black" };
@@ -180,6 +194,16 @@ export default function ScorecardPage() {
     return { total, diff: total - par };
   }
 
+  function totalStableford(uid: string): number {
+    const p = players.find((pl) => pl.user_id === uid);
+    const hcp = courseHcp(p?.handicap_index ?? null);
+    return holes.reduce((sum, h) => {
+      const s = scores[h.id]?.[uid];
+      if (!s) return sum;
+      return sum + stablefordPoints(s, h.par, strokesOnHole(hcp, h.stroke_index));
+    }, 0);
+  }
+
   async function abortRound() {
     if (!confirm("Avbryta rundan? All data raderas.")) return;
     await fetch(`/api/rounds/${id}`, { method: "DELETE" });
@@ -286,19 +310,20 @@ export default function ScorecardPage() {
             <section className="px-2">
               <h2 className="text-xs font-semibold text-gray-500 uppercase mb-2">Slutresultat</h2>
               <div className="space-y-2">
-                {[...players].sort((a, b) => totalScore(a.user_id).diff - totalScore(b.user_id).diff).map((p, i) => {
+                {[...players].sort((a, b) => totalStableford(b.user_id) - totalStableford(a.user_id)).map((p, i) => {
                   const { total, diff } = totalScore(p.user_id);
+                  const totalSt = totalStableford(p.user_id);
                   return (
                     <div key={p.user_id} className="bg-white rounded-2xl shadow px-4 py-3 flex items-center gap-3">
                       <span className="text-sm font-bold text-gray-400 w-5">{i + 1}</span>
                       <div className="flex-1">
                         <p className="font-semibold text-gray-800 text-sm">{p.name}</p>
-                        {p.tee_name && <p className="text-xs text-gray-400">{p.tee_name}</p>}
+                        <p className="text-xs text-gray-400">HCP {courseHcp(p.handicap_index)}{p.tee_name ? ` · ${p.tee_name}` : ""}</p>
                       </div>
                       <div className="text-right">
-                        <p className="text-xl font-bold text-gray-900">{total || "—"}</p>
-                        <p className={`text-sm font-medium ${diff > 0 ? "text-red-600" : diff < 0 ? "text-green-600" : "text-gray-500"}`}>
-                          {total > 0 ? (diff > 0 ? `+${diff}` : diff === 0 ? "Par" : diff) : "—"}
+                        <p className="text-xl font-bold text-green-700">{totalSt}p</p>
+                        <p className={`text-sm font-medium ${diff > 0 ? "text-red-500" : diff < 0 ? "text-green-600" : "text-gray-400"}`}>
+                          {total > 0 ? `${total} (${diff > 0 ? "+" : ""}${diff === 0 ? "par" : diff})` : "—"}
                         </p>
                       </div>
                     </div>
@@ -311,7 +336,12 @@ export default function ScorecardPage() {
                     <tr className="bg-green-800 text-white">
                       <th className="px-3 py-2 text-left sticky left-0 bg-green-800">Hål</th>
                       <th className="px-2 py-2">Par</th>
-                      {players.map((p) => <th key={p.user_id} className="px-2 py-2 min-w-14">{p.name.split(" ")[0]}</th>)}
+                      <th className="px-2 py-2">SI</th>
+                      {players.map((p) => (
+                        <th key={p.user_id} className="px-2 py-2 min-w-16 text-center">
+                          {p.name.split(" ")[0]}
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
@@ -319,13 +349,24 @@ export default function ScorecardPage() {
                       <tr key={h.id} className={i % 2 === 0 ? "bg-white" : "bg-green-50"}>
                         <td className="px-3 py-2 font-semibold text-gray-700 sticky left-0 bg-inherit">{h.hole_number}</td>
                         <td className="px-2 py-2 text-center text-gray-500">{h.par}</td>
+                        <td className="px-2 py-2 text-center text-gray-400">{h.stroke_index ?? "—"}</td>
                         {players.map((p) => {
                           const s = scores[h.id]?.[p.user_id];
-                          if (s === undefined) return <td key={p.user_id} className="px-2 py-2 text-center text-gray-300">—</td>;
+                          const hcp = courseHcp(p.handicap_index);
+                          const extra = strokesOnHole(hcp, h.stroke_index);
+                          if (s === undefined) return (
+                            <td key={p.user_id} className="px-2 py-1.5 text-center text-gray-300">
+                              {extra > 0 && <div className="text-yellow-400 text-xs mb-0.5">+{extra}</div>}
+                              —
+                            </td>
+                          );
                           const { cls } = scoreBadge(s, h.par);
+                          const pts = stablefordPoints(s, h.par, extra);
                           return (
-                            <td key={p.user_id} className="px-2 py-2 text-center">
+                            <td key={p.user_id} className="px-2 py-1.5 text-center">
+                              {extra > 0 && <div className="text-yellow-600 text-xs mb-0.5 font-semibold">+{extra}</div>}
                               <span className={`inline-flex w-7 h-7 rounded-full items-center justify-center font-bold ${cls}`}>{s}</span>
+                              <div className="text-green-600 text-xs mt-0.5 font-semibold">{pts}p</div>
                             </td>
                           );
                         })}
@@ -334,12 +375,15 @@ export default function ScorecardPage() {
                     <tr className="bg-green-900 text-white font-bold">
                       <td className="px-3 py-2 sticky left-0 bg-green-900">Tot</td>
                       <td className="px-2 py-2 text-center">{holes.reduce((s, h) => s + h.par, 0)}</td>
+                      <td className="px-2 py-2" />
                       {players.map((p) => {
                         const { total, diff } = totalScore(p.user_id);
+                        const totalSt = totalStableford(p.user_id);
                         return (
                           <td key={p.user_id} className="px-2 py-2 text-center">
                             <div>{total || "—"}</div>
-                            {total > 0 && <div className={`text-xs font-normal ${diff > 0 ? "text-red-300" : diff < 0 ? "text-green-300" : "text-gray-300"}`}>{diff > 0 ? `+${diff}` : diff === 0 ? "Par" : diff}</div>}
+                            {total > 0 && <div className={`text-xs font-normal ${diff > 0 ? "text-red-300" : diff < 0 ? "text-green-300" : "text-gray-300"}`}>{diff > 0 ? `+${diff}` : diff === 0 ? "par" : diff}</div>}
+                            <div className="text-xs font-semibold text-yellow-300">{totalSt}p</div>
                           </td>
                         );
                       })}
@@ -434,35 +478,50 @@ export default function ScorecardPage() {
           const val = scores[hole.id]?.[p.user_id] ?? 0;
           const { total, diff } = totalScore(p.user_id);
           const badge = val > 0 ? scoreBadge(val, hole.par) : null;
+          const hcp = courseHcp(p.handicap_index);
+          const extra = strokesOnHole(hcp, hole.stroke_index);
+          const stablePts = val > 0 ? stablefordPoints(val, hole.par, extra) : null;
+          const totalSt = totalStableford(p.user_id);
           return (
             <div key={p.user_id} className="bg-white rounded-2xl shadow px-4 py-4">
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <p className="font-semibold text-gray-800">{p.name}</p>
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="font-semibold text-gray-800 truncate">{p.name}</p>
+                    {extra > 0 && (
+                      <span className="shrink-0 text-xs bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-full font-bold">+{extra}</span>
+                    )}
+                  </div>
                   <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-xs text-gray-400">HCP {hcp}</span>
                     {p.tee_name && (
-                      <span className="flex items-center gap-1 text-xs text-gray-500">
-                        <span className={`w-2.5 h-2.5 rounded-full inline-block ${
+                      <span className="flex items-center gap-1 text-xs text-gray-400">
+                        · <span className={`w-2 h-2 rounded-full inline-block ${
                           p.tee_color === "red" ? "bg-red-500" :
                           p.tee_color === "yellow" ? "bg-yellow-400" :
                           p.tee_color === "blue" ? "bg-blue-500" :
                           p.tee_color === "white" ? "bg-white border border-gray-300" : "bg-gray-400"
                         }`} />
                         {p.tee_name}
-                        {p.tee_id && teeDistances[p.tee_id]?.[hole.id] && <span>· {teeDistances[p.tee_id][hole.id]} m</span>}
+                        {p.tee_id && teeDistances[p.tee_id]?.[hole.id] && <span>{teeDistances[p.tee_id][hole.id]} m</span>}
                       </span>
                     )}
                     {format === "matchplay" && p.team && (
                       <span className={`text-xs font-bold ${p.team === "red" ? "text-red-600" : "text-blue-600"}`}>
-                        {p.team === "red" ? "RÖTT" : "BLÅTT"}
+                        {p.team === "red" ? "· RÖTT" : "· BLÅTT"}
                       </span>
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {badge && <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${badge.cls}`}>{badge.label}</span>}
-                  <p className={`text-sm font-medium ${diff > 0 ? "text-red-500" : diff < 0 ? "text-green-600" : "text-gray-400"}`}>
-                    {total > 0 ? (diff > 0 ? `+${diff}` : diff === 0 ? "Par" : diff) : "—"}
+                <div className="flex flex-col items-end gap-1 shrink-0 ml-2">
+                  <div className="flex items-center gap-1.5">
+                    {badge && <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${badge.cls}`}>{badge.label}</span>}
+                    {stablePts !== null && (
+                      <span className="text-xs font-bold bg-green-100 text-green-700 px-2 py-0.5 rounded-full">{stablePts}p</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-400">
+                    {total > 0 ? `${diff > 0 ? "+" : ""}${diff === 0 ? "par" : diff}` : "—"} · {totalSt}p tot
                   </p>
                 </div>
               </div>
