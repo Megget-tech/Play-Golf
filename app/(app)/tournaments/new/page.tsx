@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase";
 const FORMATS = [
   { value: "stroke", label: "Slagspel", desc: "Lägst total score vinner" },
   { value: "scramble", label: "Scramble", desc: "Laget spelar från bästa bollen" },
-  { value: "matchplay", label: "Match / Ryder Cup", desc: "Rött vs Blått lag — poäng per hål" },
+  { value: "ryder_cup", label: "Ryder Cup", desc: "Foursomes, fyrboll och singel — poäng per match" },
 ];
 
 export default function NewTournamentPage() {
