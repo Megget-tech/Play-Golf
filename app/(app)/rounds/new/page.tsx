@@ -41,6 +41,10 @@ function NewRoundInner() {
   const [manualGolfId, setManualGolfId] = useState("");
   const [manualLoading, setManualLoading] = useState(false);
   const [savedGuests, setSavedGuests] = useState<Player[]>([]);
+  const [editingGuest, setEditingGuest] = useState<Player | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editHcp, setEditHcp] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const draftRestored = useRef(false);
 
@@ -141,6 +145,34 @@ function NewRoundInner() {
       setError(data.error ?? "Kunde inte lägga till spelaren.");
     }
     setManualLoading(false);
+  }
+
+  function startEditGuest(g: Player) {
+    setEditingGuest(g);
+    setEditName(g.name);
+    setEditHcp(g.handicap_index != null ? String(g.handicap_index) : "");
+  }
+
+  async function saveEditGuest() {
+    if (!editingGuest || !editName.trim()) return;
+    setEditSaving(true);
+    const res = await fetch(`/api/players/${editingGuest.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: editName.trim(),
+        handicap_index: editHcp ? parseFloat(editHcp) : null,
+      }),
+    });
+    const data = await res.json();
+    if (data.id) {
+      const updated = { ...editingGuest, name: data.name, handicap_index: data.handicap_index };
+      setSavedGuests((prev) => prev.map((g) => g.id === data.id ? updated : g).sort((a, b) => a.name.localeCompare(b.name)));
+      // Also update if already added to the round
+      setPlayers((prev) => prev.map((p) => p.id === data.id ? { ...p, name: data.name, handicap_index: data.handicap_index } : p));
+    }
+    setEditingGuest(null);
+    setEditSaving(false);
   }
 
   function removePlayer(id: string) {
@@ -342,17 +374,44 @@ function NewRoundInner() {
           </div>
 
           {/* Previously added manual players */}
-          {availableGuests.length > 0 && (
+          {(availableGuests.length > 0 || savedGuests.some((g) => players.find((p) => p.id === g.id))) && (
             <div className="mb-2">
-              <p className="text-xs text-gray-500 mb-1.5">Tidigare sparade spelare</p>
+              <p className="text-xs text-gray-500 mb-1.5">Sparade spelare</p>
+
+              {/* Edit form */}
+              {editingGuest && (
+                <div className="bg-white border border-green-300 rounded-2xl px-4 py-3 space-y-2 mb-2 shadow-sm">
+                  <p className="text-xs font-semibold text-gray-600">Redigera {editingGuest.name}</p>
+                  <input type="text" value={editName} onChange={(e) => setEditName(e.target.value)}
+                    placeholder="Namn" className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+                  <input type="number" value={editHcp} onChange={(e) => setEditHcp(e.target.value)}
+                    placeholder="HCP" step="0.1" min="0" max="54"
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+                  <div className="flex gap-2">
+                    <button onClick={() => setEditingGuest(null)} className="flex-1 rounded-xl py-1.5 text-sm text-gray-500 bg-gray-100">Avbryt</button>
+                    <button onClick={saveEditGuest} disabled={editSaving || !editName.trim()}
+                      className="flex-1 rounded-xl py-1.5 text-sm font-semibold text-white bg-green-700 disabled:opacity-50">
+                      {editSaving ? "Sparar..." : "Spara"}
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div className="flex flex-wrap gap-2">
-                {availableGuests.map((g) => (
-                  <button key={g.id} onClick={() => addPlayer(g)}
-                    className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-xl px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm hover:border-green-400 hover:text-green-700 transition-colors">
-                    + {g.name}
-                    {g.handicap_index != null && <span className="text-gray-400">{g.handicap_index}</span>}
-                  </button>
-                ))}
+                {savedGuests.map((g) => {
+                  const alreadyAdded = !!players.find((p) => p.id === g.id);
+                  return (
+                    <div key={g.id} className={`flex items-center gap-1 border rounded-xl text-xs font-medium shadow-sm transition-colors ${alreadyAdded ? "bg-green-50 border-green-300 text-green-800" : "bg-white border-gray-200 text-gray-700"}`}>
+                      <button onClick={() => !alreadyAdded && addPlayer(g)} disabled={alreadyAdded}
+                        className="pl-3 pr-1 py-1.5 flex items-center gap-1">
+                        {!alreadyAdded && <span className="text-gray-400">+</span>}
+                        {g.name}
+                        {g.handicap_index != null && <span className="text-gray-400 font-normal ml-0.5">{g.handicap_index}</span>}
+                      </button>
+                      <button onClick={() => startEditGuest(g)} className="pr-2 py-1.5 text-gray-400 hover:text-gray-600" title="Redigera">✏</button>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
