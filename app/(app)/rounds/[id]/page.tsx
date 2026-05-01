@@ -26,6 +26,7 @@ export default function ScorecardPage() {
   const [saving, setSaving] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [teeDistances, setTeeDistances] = useState<TeeDistances>({});
+  const [showMenu, setShowMenu] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -140,6 +141,12 @@ export default function ScorecardPage() {
     setSaving(false);
   }
 
+  async function abortRound() {
+    if (!confirm("Avbryta rundan? All data raderas.")) return;
+    await fetch(`/api/rounds/${id}`, { method: "DELETE" });
+    router.push("/dashboard");
+  }
+
   function totalScore(uid: string) {
     let total = 0; let par = 0;
     for (const h of holes) {
@@ -193,9 +200,35 @@ export default function ScorecardPage() {
           <p className="text-xs opacity-75">{courseName}</p>
           <h1 className="text-lg font-bold">Hål {hole.hole_number}</h1>
         </div>
-        <div className="text-right">
-          <p className="text-xs opacity-75">Par {hole.par} · SI {hole.stroke_index ?? "—"}</p>
-          <p className="text-xs opacity-75">{currentHole + 1}/{holes.length}</p>
+        <div className="flex items-center gap-3">
+          <div className="text-right">
+            <p className="text-xs opacity-75">Par {hole.par} · SI {hole.stroke_index ?? "—"}</p>
+            <p className="text-xs opacity-75">{currentHole + 1}/{holes.length}</p>
+          </div>
+          <div className="relative">
+            <button
+              onClick={() => setShowMenu((v) => !v)}
+              className="w-8 h-8 flex items-center justify-center rounded-full bg-white/20 text-lg"
+            >
+              ···
+            </button>
+            {showMenu && (
+              <div className="absolute right-0 top-10 bg-white rounded-2xl shadow-xl z-50 overflow-hidden min-w-44">
+                <button
+                  onClick={() => { setShowMenu(false); setCurrentHole(holes.length); }}
+                  className="w-full text-left px-4 py-3 text-sm font-semibold text-green-700 hover:bg-green-50"
+                >
+                  Avsluta runda
+                </button>
+                <button
+                  onClick={() => { setShowMenu(false); abortRound(); }}
+                  className="w-full text-left px-4 py-3 text-sm font-semibold text-red-600 hover:bg-red-50 border-t border-gray-100"
+                >
+                  Avbryt &amp; radera runda
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 

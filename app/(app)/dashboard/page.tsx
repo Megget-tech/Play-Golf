@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase";
 
@@ -11,6 +11,83 @@ const actions = [
 ];
 
 type Round = { id: string; date: string; format: string; courses: { name: string } | null };
+
+const FORMAT_LABEL: Record<string, string> = {
+  stroke: "Slagspel", scramble: "Scramble", matchplay: "Match",
+};
+
+const SWIPE_THRESHOLD = 72;
+
+function SwipeableRound({ round, onDelete }: { round: Round; onDelete: (id: string) => void }) {
+  const [offsetX, setOffsetX] = useState(0);
+  const [open, setOpen] = useState(false);
+  const startX = useRef(0);
+  const isDragging = useRef(false);
+
+  function onTouchStart(e: React.TouchEvent) {
+    startX.current = e.touches[0].clientX;
+    isDragging.current = true;
+  }
+
+  function onTouchMove(e: React.TouchEvent) {
+    if (!isDragging.current) return;
+    const dx = e.touches[0].clientX - startX.current;
+    if (open) {
+      setOffsetX(Math.min(0, -SWIPE_THRESHOLD + dx));
+    } else {
+      setOffsetX(Math.min(0, dx));
+    }
+  }
+
+  function onTouchEnd() {
+    isDragging.current = false;
+    if (open) {
+      if (offsetX > -SWIPE_THRESHOLD / 2) { setOpen(false); setOffsetX(0); }
+      else { setOpen(true); setOffsetX(-SWIPE_THRESHOLD); }
+    } else {
+      if (offsetX < -SWIPE_THRESHOLD / 2) { setOpen(true); setOffsetX(-SWIPE_THRESHOLD); }
+      else { setOpen(false); setOffsetX(0); }
+    }
+  }
+
+  const translateX = open && offsetX === 0 ? -SWIPE_THRESHOLD : offsetX;
+
+  return (
+    <li className="relative overflow-hidden rounded-2xl">
+      {/* Delete button behind */}
+      <div className="absolute inset-y-0 right-0 w-18 flex items-center justify-end pr-2 bg-red-500 rounded-2xl">
+        <button
+          onClick={() => onDelete(round.id)}
+          className="text-white text-sm font-semibold px-3 py-2"
+        >
+          Radera
+        </button>
+      </div>
+
+      {/* Card */}
+      <div
+        className="relative bg-white shadow transition-transform touch-pan-y"
+        style={{ transform: `translateX(${translateX}px)`, borderRadius: "1rem" }}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+        onClick={() => { if (open) { setOpen(false); setOffsetX(0); } }}
+      >
+        <Link
+          href={open ? "#" : `/rounds/${round.id}`}
+          onClick={(e) => { if (open) e.preventDefault(); }}
+          className="flex items-center justify-between px-4 py-3"
+        >
+          <div>
+            <p className="font-semibold text-sm text-gray-800">{round.courses?.name ?? "Okänd bana"}</p>
+            <p className="text-xs text-gray-400">{FORMAT_LABEL[round.format] ?? round.format} · {new Date(round.date).toLocaleDateString("sv-SE")}</p>
+          </div>
+          <span className="text-gray-400">→</span>
+        </Link>
+      </div>
+    </li>
+  );
+}
 
 export default function DashboardPage() {
   const [rounds, setRounds] = useState<Round[]>([]);
@@ -36,9 +113,11 @@ export default function DashboardPage() {
     load();
   }, []);
 
-  const FORMAT_LABEL: Record<string, string> = {
-    stroke: "Slagspel", scramble: "Scramble", matchplay: "Match",
-  };
+  async function deleteRound(id: string) {
+    if (!confirm("Radera rundan?")) return;
+    await fetch(`/api/rounds/${id}`, { method: "DELETE" });
+    setRounds((prev) => prev.filter((r) => r.id !== id));
+  }
 
   return (
     <div className="min-h-screen bg-green-50">
@@ -65,20 +144,10 @@ export default function DashboardPage() {
         {rounds.length > 0 && (
           <section>
             <h2 className="text-xs font-semibold text-gray-500 uppercase mb-2">Senaste rundor</h2>
+            <p className="text-xs text-gray-400 mb-2">Svajpa vänster för att radera</p>
             <ul className="space-y-2">
               {rounds.map((r) => (
-                <li key={r.id}>
-                  <Link
-                    href={`/rounds/${r.id}`}
-                    className="flex items-center justify-between bg-white rounded-2xl shadow px-4 py-3"
-                  >
-                    <div>
-                      <p className="font-semibold text-sm text-gray-800">{r.courses?.name ?? "Okänd bana"}</p>
-                      <p className="text-xs text-gray-400">{FORMAT_LABEL[r.format] ?? r.format} · {new Date(r.date).toLocaleDateString("sv-SE")}</p>
-                    </div>
-                    <span className="text-gray-400">→</span>
-                  </Link>
-                </li>
+                <SwipeableRound key={r.id} round={r} onDelete={deleteRound} />
               ))}
             </ul>
           </section>
