@@ -14,6 +14,8 @@ const TEE_COLORS: Record<string, string> = {
   white: "bg-white border border-gray-300", black: "bg-gray-900",
 };
 
+const DRAFT_KEY = "round_draft";
+
 type Tee = { id: string; name: string; color: string | null; par_total: number | null; sort_order: number };
 type Player = { id: string; name: string; handicap_index: number; team?: "red" | "blue" | null; tee_id?: string | null };
 
@@ -38,22 +40,58 @@ function NewRoundInner() {
   const [manualHcp, setManualHcp] = useState("");
   const [manualGolfId, setManualGolfId] = useState("");
   const [manualLoading, setManualLoading] = useState(false);
+  const [savedGuests, setSavedGuests] = useState<Player[]>([]);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const draftRestored = useRef(false);
 
+  // ── Init: restore draft OR load current user ─────────────────────────────
   useEffect(() => {
     async function init() {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
       setUserId(user.id);
-      const { data: profile } = await supabase.from("profiles").select("name, handicap_index").eq("id", user.id).single();
-      if (profile) {
-        setPlayers([{ id: user.id, name: profile.name, handicap_index: profile.handicap_index, tee_id: null }]);
+
+      // Restore draft if it exists
+      try {
+        const raw = sessionStorage.getItem(DRAFT_KEY);
+        if (raw) {
+          const draft = JSON.parse(raw);
+          if (draft.players?.length > 0) {
+            setPlayers(draft.players);
+            if (draft.format) setFormat(draft.format);
+            if (draft.startingHole) setStartingHole(draft.startingHole);
+            draftRestored.current = true;
+          }
+        }
+      } catch {}
+
+      if (!draftRestored.current) {
+        const { data: profile } = await supabase.from("profiles").select("name, handicap_index").eq("id", user.id).single();
+        if (profile) {
+          setPlayers([{ id: user.id, name: profile.name, handicap_index: profile.handicap_index, tee_id: null }]);
+        }
       }
+
+      // Load previously added manual players
+      const { data: guests } = await supabase
+        .from("profiles")
+        .select("id, name, handicap_index")
+        .eq("is_guest", true)
+        .eq("created_by", user.id)
+        .order("name");
+      setSavedGuests((guests ?? []) as Player[]);
     }
     init();
   }, []);
 
+  // ── Persist draft to sessionStorage ──────────────────────────────────────
+  useEffect(() => {
+    if (players.length === 0) return;
+    sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ players, format, startingHole }));
+  }, [players, format, startingHole]);
+
+  // ── Load tees for selected course ─────────────────────────────────────────
   useEffect(() => {
     if (!courseId) { setTees([]); return; }
     createClient()
@@ -64,6 +102,7 @@ function NewRoundInner() {
       .then(({ data }) => setTees(data ?? []));
   }, [courseId]);
 
+  // ── Player search ─────────────────────────────────────────────────────────
   useEffect(() => {
     if (timer.current) clearTimeout(timer.current);
     if (search.length < 2) { setSearchResults([]); return; }
@@ -93,7 +132,9 @@ function NewRoundInner() {
     });
     const data = await res.json();
     if (data.id) {
-      setPlayers((prev) => [...prev, { id: data.id, name: data.name, handicap_index: data.handicap_index, team: null, tee_id: null }]);
+      const newPlayer = { id: data.id, name: data.name, handicap_index: data.handicap_index, team: null, tee_id: null };
+      setPlayers((prev) => [...prev, newPlayer]);
+      setSavedGuests((prev) => [...prev, newPlayer].sort((a, b) => a.name.localeCompare(b.name)));
       setManualName(""); setManualHcp(""); setManualGolfId("");
       setShowManualForm(false);
     } else {
@@ -101,6 +142,7 @@ function NewRoundInner() {
     }
     setManualLoading(false);
   }
+
   function removePlayer(id: string) {
     if (id === userId) return;
     setPlayers((prev) => prev.filter((p) => p.id !== id));
@@ -145,8 +187,12 @@ function NewRoundInner() {
         body: JSON.stringify({ user_id: p.id, team: p.team ?? null, tee_id: p.tee_id ?? null }),
       })
     ));
+
+    sessionStorage.removeItem(DRAFT_KEY);
     router.push(`/rounds/${data.id}`);
   }
+
+  const availableGuests = savedGuests.filter((g) => !players.find((p) => p.id === g.id));
 
   return (
     <div className="min-h-screen bg-green-50">
@@ -163,7 +209,12 @@ function NewRoundInner() {
           {courseName ? (
             <div className="bg-white rounded-2xl shadow px-4 py-3 flex items-center justify-between">
               <span className="font-semibold text-gray-800">{courseName}</span>
-              <button onClick={() => router.push("/courses")} className="text-xs text-green-700 underline">Ändra</button>
+              <button
+                onClick={() => router.push(`/courses?returnTo=/rounds/new&courseId=${courseId}&courseName=${encodeURIComponent(courseName)}`)}
+                className="text-xs text-green-700 underline"
+              >
+                Ändra
+              </button>
             </div>
           ) : (
             <button onClick={() => router.push("/courses")} className="w-full bg-white rounded-2xl shadow px-4 py-3 text-left text-green-700 font-medium text-sm">
@@ -210,28 +261,22 @@ function NewRoundInner() {
                     <p className="font-semibold text-sm text-gray-800">
                       {p.name} {p.id === userId && <span className="text-xs text-gray-400">(du)</span>}
                     </p>
-                    <p className="text-xs text-gray-400">HCP {p.handicap_index}</p>
+                    <p className="text-xs text-gray-400">HCP {p.handicap_index ?? "—"}</p>
                   </div>
                   {p.id !== userId && (
                     <button onClick={() => removePlayer(p.id)} className="text-gray-400 text-lg">×</button>
                   )}
                 </div>
 
-                {/* Tee selector — only if course has tees */}
                 {tees.length > 0 && (
                   <div>
                     <p className="text-xs text-gray-500 mb-1.5">Tee</p>
                     <div className="flex flex-wrap gap-2">
                       {tees.map((t) => (
-                        <button
-                          key={t.id}
-                          onClick={() => setPlayerTee(p.id, t.id)}
+                        <button key={t.id} onClick={() => setPlayerTee(p.id, t.id)}
                           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
-                            p.tee_id === t.id
-                              ? "border-green-600 bg-green-50 text-green-800 shadow-sm"
-                              : "border-gray-200 bg-white text-gray-600"
-                          }`}
-                        >
+                            p.tee_id === t.id ? "border-green-600 bg-green-50 text-green-800 shadow-sm" : "border-gray-200 bg-white text-gray-600"
+                          }`}>
                           <span className={`w-3 h-3 rounded-full inline-block ${TEE_COLORS[t.color ?? ""] ?? "bg-gray-300"}`} />
                           {t.name}
                           {t.par_total && <span className="text-gray-400 font-normal">Par {t.par_total}</span>}
@@ -241,12 +286,9 @@ function NewRoundInner() {
                   </div>
                 )}
 
-                {/* Team assignment for matchplay and scramble */}
                 {(format === "matchplay" || format === "scramble") && (
                   <div>
-                    <p className="text-xs text-gray-500 mb-1.5">
-                      {format === "matchplay" ? "Lag" : "Scramble-lag"}
-                    </p>
+                    <p className="text-xs text-gray-500 mb-1.5">{format === "matchplay" ? "Lag" : "Scramble-lag"}</p>
                     <div className="flex gap-2">
                       <button onClick={() => setTeam(p.id, "red")}
                         className={`flex-1 rounded-lg py-1.5 text-xs font-bold transition-colors ${p.team === "red" ? "bg-red-600 text-white" : "bg-red-50 text-red-600"}`}>
@@ -263,9 +305,9 @@ function NewRoundInner() {
             ))}
           </ul>
 
-          {/* Scramble team HCP summary */}
+          {/* Scramble HCP summary */}
           {format === "scramble" && (["red", "blue"] as const).some((t) => players.some((p) => p.team === t)) && (
-            <div className="bg-green-50 border border-green-200 rounded-2xl px-4 py-3 space-y-1 text-sm">
+            <div className="bg-green-50 border border-green-200 rounded-2xl px-4 py-3 space-y-1 text-sm mb-3">
               {(["red", "blue"] as const).map((t) => {
                 const info = scrambleTeamInfo(t);
                 if (!info) return null;
@@ -276,11 +318,12 @@ function NewRoundInner() {
                   </div>
                 );
               })}
-              <p className="text-xs text-gray-400 pt-1">2-manna: 35% + 15% · 4-manna: 20% + 15% + 10% + 5%</p>
+              <p className="text-xs text-gray-400 pt-1">2-manna: 35%+15% · 4-manna: 20%+15%+10%+5%</p>
             </div>
           )}
 
-          <div className="relative">
+          {/* Player search */}
+          <div className="relative mb-2">
             <input type="search" placeholder="Sök registrerad spelare..." value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full bg-white border border-gray-200 rounded-2xl px-4 py-3 text-sm shadow focus:outline-none focus:ring-2 focus:ring-green-500" />
@@ -298,58 +341,49 @@ function NewRoundInner() {
             )}
           </div>
 
+          {/* Previously added manual players */}
+          {availableGuests.length > 0 && (
+            <div className="mb-2">
+              <p className="text-xs text-gray-500 mb-1.5">Tidigare sparade spelare</p>
+              <div className="flex flex-wrap gap-2">
+                {availableGuests.map((g) => (
+                  <button key={g.id} onClick={() => addPlayer(g)}
+                    className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-xl px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm hover:border-green-400 hover:text-green-700 transition-colors">
+                    + {g.name}
+                    {g.handicap_index != null && <span className="text-gray-400">{g.handicap_index}</span>}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Manual player form */}
           {showManualForm ? (
             <div className="bg-white rounded-2xl shadow px-4 py-4 space-y-3">
-              <p className="text-sm font-semibold text-gray-700">Lägg till spelare manuellt</p>
-              <input
-                type="text"
-                placeholder="Namn *"
-                value={manualName}
-                onChange={(e) => setManualName(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
+              <p className="text-sm font-semibold text-gray-700">Ny spelare</p>
+              <input type="text" placeholder="Namn *" value={manualName} onChange={(e) => setManualName(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
               <div className="flex gap-2">
-                <input
-                  type="number"
-                  placeholder="HCP (t.ex. 18.4)"
-                  value={manualHcp}
-                  onChange={(e) => setManualHcp(e.target.value)}
-                  step="0.1"
-                  min="0"
-                  max="54"
-                  className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
-                <input
-                  type="text"
-                  placeholder="Golf-ID (valfritt)"
-                  value={manualGolfId}
+                <input type="number" placeholder="HCP (t.ex. 18.4)" value={manualHcp}
+                  onChange={(e) => setManualHcp(e.target.value)} step="0.1" min="0" max="54"
+                  className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+                <input type="text" placeholder="Golf-ID (valfritt)" value={manualGolfId}
                   onChange={(e) => setManualGolfId(e.target.value)}
-                  className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
+                  className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
               </div>
               <div className="flex gap-2">
-                <button
-                  onClick={() => { setShowManualForm(false); setManualName(""); setManualHcp(""); setManualGolfId(""); }}
-                  className="flex-1 rounded-xl py-2 text-sm text-gray-600 bg-gray-100"
-                >
-                  Avbryt
-                </button>
-                <button
-                  onClick={addManualPlayer}
-                  disabled={manualLoading || !manualName.trim()}
-                  className="flex-1 rounded-xl py-2 text-sm font-semibold text-white bg-green-700 disabled:opacity-50"
-                >
-                  {manualLoading ? "Lägger till..." : "Lägg till"}
+                <button onClick={() => { setShowManualForm(false); setManualName(""); setManualHcp(""); setManualGolfId(""); }}
+                  className="flex-1 rounded-xl py-2 text-sm text-gray-600 bg-gray-100">Avbryt</button>
+                <button onClick={addManualPlayer} disabled={manualLoading || !manualName.trim()}
+                  className="flex-1 rounded-xl py-2 text-sm font-semibold text-white bg-green-700 disabled:opacity-50">
+                  {manualLoading ? "Sparar..." : "Lägg till"}
                 </button>
               </div>
             </div>
           ) : (
-            <button
-              onClick={() => setShowManualForm(true)}
-              className="w-full border border-dashed border-gray-300 rounded-2xl py-3 text-sm text-gray-500 hover:border-green-400 hover:text-green-700 transition-colors"
-            >
-              + Lägg till spelare manuellt
+            <button onClick={() => setShowManualForm(true)}
+              className="w-full border border-dashed border-gray-300 rounded-2xl py-3 text-sm text-gray-500 hover:border-green-400 hover:text-green-700 transition-colors">
+              + Lägg till ny spelare manuellt
             </button>
           )}
         </section>

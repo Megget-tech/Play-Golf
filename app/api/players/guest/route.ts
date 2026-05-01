@@ -19,6 +19,7 @@ export async function POST(req: NextRequest) {
       handicap_index: handicap_index ?? null,
       golf_id: golf_id?.trim() || null,
       is_guest: true,
+      created_by: user.id,
     })
     .select("id, name, handicap_index")
     .single();
