@@ -96,6 +96,8 @@ function NewRoundInner() {
       setPlayers((prev) => [...prev, { id: data.id, name: data.name, handicap_index: data.handicap_index, team: null, tee_id: null }]);
       setManualName(""); setManualHcp(""); setManualGolfId("");
       setShowManualForm(false);
+    } else {
+      setError(data.error ?? "Kunde inte lägga till spelaren.");
     }
     setManualLoading(false);
   }
@@ -227,17 +229,22 @@ function NewRoundInner() {
                   </div>
                 )}
 
-                {/* Matchplay team */}
-                {format === "matchplay" && (
-                  <div className="flex gap-2">
-                    <button onClick={() => setTeam(p.id, "red")}
-                      className={`flex-1 rounded-lg py-1 text-xs font-bold transition-colors ${p.team === "red" ? "bg-red-600 text-white" : "bg-red-50 text-red-600"}`}>
-                      RÖTT
-                    </button>
-                    <button onClick={() => setTeam(p.id, "blue")}
-                      className={`flex-1 rounded-lg py-1 text-xs font-bold transition-colors ${p.team === "blue" ? "bg-blue-600 text-white" : "bg-blue-50 text-blue-600"}`}>
-                      BLÅTT
-                    </button>
+                {/* Team assignment for matchplay and scramble */}
+                {(format === "matchplay" || format === "scramble") && (
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1.5">
+                      {format === "matchplay" ? "Lag" : "Scramble-lag"}
+                    </p>
+                    <div className="flex gap-2">
+                      <button onClick={() => setTeam(p.id, "red")}
+                        className={`flex-1 rounded-lg py-1.5 text-xs font-bold transition-colors ${p.team === "red" ? "bg-red-600 text-white" : "bg-red-50 text-red-600"}`}>
+                        {format === "matchplay" ? "RÖTT" : "LAG A"}
+                      </button>
+                      <button onClick={() => setTeam(p.id, "blue")}
+                        className={`flex-1 rounded-lg py-1.5 text-xs font-bold transition-colors ${p.team === "blue" ? "bg-blue-600 text-white" : "bg-blue-50 text-blue-600"}`}>
+                        {format === "matchplay" ? "BLÅTT" : "LAG B"}
+                      </button>
+                    </div>
                   </div>
                 )}
               </li>

@@ -115,8 +115,10 @@ export default function DashboardPage() {
 
   async function deleteRound(id: string) {
     if (!confirm("Radera rundan?")) return;
-    await fetch(`/api/rounds/${id}`, { method: "DELETE" });
-    setRounds((prev) => prev.filter((r) => r.id !== id));
+    const res = await fetch(`/api/rounds/${id}`, { method: "DELETE" });
+    if (res.ok) {
+      setRounds((prev) => prev.filter((r) => r.id !== id));
+    }
   }
 
   return (
