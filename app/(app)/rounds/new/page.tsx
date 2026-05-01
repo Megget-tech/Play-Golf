@@ -33,6 +33,11 @@ function NewRoundInner() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [userId, setUserId] = useState<string | null>(null);
+  const [showManualForm, setShowManualForm] = useState(false);
+  const [manualName, setManualName] = useState("");
+  const [manualHcp, setManualHcp] = useState("");
+  const [manualGolfId, setManualGolfId] = useState("");
+  const [manualLoading, setManualLoading] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -72,6 +77,27 @@ function NewRoundInner() {
   function addPlayer(p: Player) {
     setPlayers((prev) => [...prev, { ...p, team: null, tee_id: null }]);
     setSearch(""); setSearchResults([]);
+  }
+
+  async function addManualPlayer() {
+    if (!manualName.trim()) return;
+    setManualLoading(true);
+    const res = await fetch("/api/players/guest", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: manualName.trim(),
+        handicap_index: manualHcp ? parseFloat(manualHcp) : null,
+        golf_id: manualGolfId.trim() || null,
+      }),
+    });
+    const data = await res.json();
+    if (data.id) {
+      setPlayers((prev) => [...prev, { id: data.id, name: data.name, handicap_index: data.handicap_index, team: null, tee_id: null }]);
+      setManualName(""); setManualHcp(""); setManualGolfId("");
+      setShowManualForm(false);
+    }
+    setManualLoading(false);
   }
   function removePlayer(id: string) {
     if (id === userId) return;
@@ -219,7 +245,7 @@ function NewRoundInner() {
           </ul>
 
           <div className="relative">
-            <input type="search" placeholder="Sök spelare att bjuda in..." value={search}
+            <input type="search" placeholder="Sök registrerad spelare..." value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full bg-white border border-gray-200 rounded-2xl px-4 py-3 text-sm shadow focus:outline-none focus:ring-2 focus:ring-green-500" />
             {searchResults.length > 0 && (
@@ -235,6 +261,61 @@ function NewRoundInner() {
               </ul>
             )}
           </div>
+
+          {/* Manual player form */}
+          {showManualForm ? (
+            <div className="bg-white rounded-2xl shadow px-4 py-4 space-y-3">
+              <p className="text-sm font-semibold text-gray-700">Lägg till spelare manuellt</p>
+              <input
+                type="text"
+                placeholder="Namn *"
+                value={manualName}
+                onChange={(e) => setManualName(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  placeholder="HCP (t.ex. 18.4)"
+                  value={manualHcp}
+                  onChange={(e) => setManualHcp(e.target.value)}
+                  step="0.1"
+                  min="0"
+                  max="54"
+                  className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+                <input
+                  type="text"
+                  placeholder="Golf-ID (valfritt)"
+                  value={manualGolfId}
+                  onChange={(e) => setManualGolfId(e.target.value)}
+                  className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { setShowManualForm(false); setManualName(""); setManualHcp(""); setManualGolfId(""); }}
+                  className="flex-1 rounded-xl py-2 text-sm text-gray-600 bg-gray-100"
+                >
+                  Avbryt
+                </button>
+                <button
+                  onClick={addManualPlayer}
+                  disabled={manualLoading || !manualName.trim()}
+                  className="flex-1 rounded-xl py-2 text-sm font-semibold text-white bg-green-700 disabled:opacity-50"
+                >
+                  {manualLoading ? "Lägger till..." : "Lägg till"}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowManualForm(true)}
+              className="w-full border border-dashed border-gray-300 rounded-2xl py-3 text-sm text-gray-500 hover:border-green-400 hover:text-green-700 transition-colors"
+            >
+              + Lägg till spelare manuellt
+            </button>
+          )}
         </section>
 
         {error && <p className="text-sm text-red-600">{error}</p>}
