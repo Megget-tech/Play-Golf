@@ -1,11 +1,15 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
-import Link from "next/link";
+import { useState, useEffect, useRef, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 
 type Course = { id: string; name: string; location: string; holes_count: number; par_total: number };
 
-export default function CoursesPage() {
+function CoursesInner() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const returnTo = searchParams.get("returnTo") ?? "/rounds/new";
+
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Course[]>([]);
   const [loading, setLoading] = useState(false);
@@ -13,6 +17,7 @@ export default function CoursesPage() {
   const [favorites, setFavorites] = useState<Course[]>([]);
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
   const [userId, setUserId] = useState<string | null>(null);
+  const [pendingCourse, setPendingCourse] = useState<Course | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -85,29 +90,52 @@ export default function CoursesPage() {
     }
   }
 
+  function selectWithHole(course: Course, startingHole: number) {
+    router.push(`${returnTo}?courseId=${course.id}&courseName=${encodeURIComponent(course.name)}&startingHole=${startingHole}`);
+  }
+
   function CourseRow({ course }: { course: Course }) {
+    const isPending = pendingCourse?.id === course.id;
     return (
-      <li className="flex items-center gap-2">
-        <Link
-          href={`/rounds/new?courseId=${course.id}&courseName=${encodeURIComponent(course.name)}`}
-          className="flex-1 flex items-center justify-between bg-white rounded-2xl shadow px-4 py-3 hover:shadow-md transition-shadow"
-        >
-          <div>
-            <p className="font-semibold text-gray-800 text-sm">{course.name}</p>
-            <p className="text-xs text-gray-500">{course.location}</p>
+      <li className="space-y-2">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setPendingCourse(isPending ? null : course)}
+            className="flex-1 flex items-center justify-between bg-white rounded-2xl shadow px-4 py-3 text-left hover:shadow-md transition-shadow"
+          >
+            <div>
+              <p className="font-semibold text-gray-800 text-sm">{course.name}</p>
+              <p className="text-xs text-gray-500">{course.location}</p>
+            </div>
+            <div className="text-right text-xs text-gray-500">
+              <p>{course.holes_count} hål</p>
+              <p>Par {course.par_total}</p>
+            </div>
+          </button>
+          <button
+            onClick={() => toggleFavorite(course)}
+            className="text-xl leading-none px-1"
+            aria-label={favoriteIds.has(course.id) ? "Ta bort favorit" : "Spara favorit"}
+          >
+            {favoriteIds.has(course.id) ? "★" : "☆"}
+          </button>
+        </div>
+        {isPending && (
+          <div className="bg-green-50 border border-green-200 rounded-2xl px-4 py-3">
+            <p className="text-xs font-semibold text-gray-600 mb-2">Välj starthål</p>
+            <div className="flex gap-2">
+              {([1, 10] as const).map((h) => (
+                <button
+                  key={h}
+                  onClick={() => selectWithHole(course, h)}
+                  className="flex-1 bg-white border border-gray-200 rounded-xl py-2.5 text-sm font-semibold text-gray-700 hover:bg-green-700 hover:text-white hover:border-green-700 transition-colors shadow-sm"
+                >
+                  Hål {h}
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="text-right text-xs text-gray-500">
-            <p>{course.holes_count} hål</p>
-            <p>Par {course.par_total}</p>
-          </div>
-        </Link>
-        <button
-          onClick={() => toggleFavorite(course)}
-          className="text-xl leading-none px-1"
-          aria-label={favoriteIds.has(course.id) ? "Ta bort favorit" : "Spara favorit"}
-        >
-          {favoriteIds.has(course.id) ? "★" : "☆"}
-        </button>
+        )}
       </li>
     );
   }
@@ -156,12 +184,12 @@ export default function CoursesPage() {
             )}
 
             <div className="text-center pt-2">
-              <Link
-                href="/courses/new"
+              <button
+                onClick={() => router.push("/courses/new")}
                 className="inline-block border border-green-300 text-green-700 rounded-2xl px-5 py-2 text-sm font-medium"
               >
                 + Skapa bana manuellt
-              </Link>
+              </button>
             </div>
           </div>
         )}
@@ -170,12 +198,12 @@ export default function CoursesPage() {
         {!showDefault && !loading && results.length === 0 && (
           <div className="text-center py-8 space-y-3">
             <p className="text-sm text-gray-500">Inga banor hittades för "{query}".</p>
-            <Link
-              href="/courses/new"
+            <button
+              onClick={() => router.push("/courses/new")}
               className="inline-block bg-green-700 text-white rounded-2xl px-5 py-2 text-sm font-medium"
             >
               + Skapa bana manuellt
-            </Link>
+            </button>
           </div>
         )}
 
@@ -187,4 +215,8 @@ export default function CoursesPage() {
       </main>
     </div>
   );
+}
+
+export default function CoursesPage() {
+  return <Suspense><CoursesInner /></Suspense>;
 }

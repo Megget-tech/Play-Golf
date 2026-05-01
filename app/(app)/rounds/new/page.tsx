@@ -27,7 +27,7 @@ function NewRoundInner() {
   const tournamentId = params.get("tournamentId") ?? "";
 
   const [format, setFormat] = useState("stroke");
-  const [startingHole, setStartingHole] = useState<1 | 10>(1);
+  const startingHole: 1 | 10 = params.get("startingHole") === "10" ? 10 : 1;
   const [tees, setTees] = useState<Tee[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
   const [search, setSearch] = useState("");
@@ -64,7 +64,6 @@ function NewRoundInner() {
           if (draft.players?.length > 0) {
             setPlayers(draft.players);
             if (draft.format) setFormat(draft.format);
-            if (draft.startingHole) setStartingHole(draft.startingHole);
             draftRestored.current = true;
           }
         }
@@ -92,7 +91,7 @@ function NewRoundInner() {
   // ── Persist draft to sessionStorage ──────────────────────────────────────
   useEffect(() => {
     if (players.length === 0) return;
-    sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ players, format, startingHole }));
+    sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ players, format }));
   }, [players, format, startingHole]);
 
   // ── Load tees for selected course ─────────────────────────────────────────
@@ -240,9 +239,12 @@ function NewRoundInner() {
           <h2 className="text-xs font-semibold text-gray-500 uppercase mb-2">Bana</h2>
           {courseName ? (
             <div className="bg-white rounded-2xl shadow px-4 py-3 flex items-center justify-between">
-              <span className="font-semibold text-gray-800">{courseName}</span>
+              <div>
+                <p className="font-semibold text-gray-800">{courseName}</p>
+                <p className="text-xs text-gray-400">Startar hål {startingHole}</p>
+              </div>
               <button
-                onClick={() => router.push(`/courses?returnTo=/rounds/new&courseId=${courseId}&courseName=${encodeURIComponent(courseName)}`)}
+                onClick={() => router.push("/courses?returnTo=/rounds/new")}
                 className="text-xs text-green-700 underline"
               >
                 Ändra
@@ -258,27 +260,16 @@ function NewRoundInner() {
         {/* Format */}
         <section>
           <h2 className="text-xs font-semibold text-gray-500 uppercase mb-2">Format</h2>
-          <div className="space-y-2">
-            {FORMATS.map((f) => (
-              <button key={f.value} onClick={() => setFormat(f.value)}
-                className={`w-full rounded-2xl px-4 py-3 text-left shadow transition-colors ${format === f.value ? "bg-green-700 text-white" : "bg-white text-gray-800"}`}>
-                <p className="font-semibold text-sm">{f.label}</p>
-                <p className={`text-xs mt-0.5 ${format === f.value ? "text-green-100" : "text-gray-500"}`}>{f.desc}</p>
-              </button>
-            ))}
-          </div>
-        </section>
-
-        {/* Starting hole */}
-        <section>
-          <h2 className="text-xs font-semibold text-gray-500 uppercase mb-2">Starthål</h2>
-          <div className="flex gap-2">
-            {([1, 10] as const).map((h) => (
-              <button key={h} onClick={() => setStartingHole(h)}
-                className={`flex-1 rounded-2xl py-3 text-sm font-semibold shadow transition-colors ${startingHole === h ? "bg-green-700 text-white" : "bg-white text-gray-700"}`}>
-                Hål {h}
-              </button>
-            ))}
+          <div className="bg-white rounded-2xl shadow px-4 py-1">
+            <select
+              value={format}
+              onChange={(e) => setFormat(e.target.value)}
+              className="w-full py-3 text-sm text-gray-800 bg-transparent focus:outline-none"
+            >
+              {FORMATS.map((f) => (
+                <option key={f.value} value={f.value}>{f.label} — {f.desc}</option>
+              ))}
+            </select>
           </div>
         </section>
 
