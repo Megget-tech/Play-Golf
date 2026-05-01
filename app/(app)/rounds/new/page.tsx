@@ -112,6 +112,18 @@ function NewRoundInner() {
     setPlayers((prev) => prev.map((p) => p.id === id ? { ...p, tee_id: teeId } : p));
   }
 
+  function scrambleTeamInfo(team: "red" | "blue") {
+    const label = team === "red" ? "Lag A" : "Lag B";
+    const members = players.filter((p) => p.team === team);
+    if (!members.length) return null;
+    const hcps = members.map((p) => p.handicap_index ?? 0).sort((a, b) => a - b);
+    let hcp = 0;
+    if (hcps.length === 2) hcp = hcps[0] * 0.35 + hcps[1] * 0.15;
+    else if (hcps.length === 3) hcp = hcps[0] * 0.25 + hcps[1] * 0.20 + hcps[2] * 0.10;
+    else if (hcps.length === 4) hcp = hcps[0] * 0.20 + hcps[1] * 0.15 + hcps[2] * 0.10 + hcps[3] * 0.05;
+    return { label, count: members.length, hcp: hcp.toFixed(1) };
+  }
+
   async function startRound() {
     if (!courseId || !userId) { setError("Välj en bana och logga in."); return; }
     setLoading(true);
@@ -250,6 +262,23 @@ function NewRoundInner() {
               </li>
             ))}
           </ul>
+
+          {/* Scramble team HCP summary */}
+          {format === "scramble" && (["red", "blue"] as const).some((t) => players.some((p) => p.team === t)) && (
+            <div className="bg-green-50 border border-green-200 rounded-2xl px-4 py-3 space-y-1 text-sm">
+              {(["red", "blue"] as const).map((t) => {
+                const info = scrambleTeamInfo(t);
+                if (!info) return null;
+                return (
+                  <div key={t} className="flex items-center justify-between">
+                    <span className="font-semibold text-gray-700">{info.label} · {info.count}-manna</span>
+                    <span className="text-gray-500">Team HCP <span className="font-bold text-gray-800">{info.hcp}</span></span>
+                  </div>
+                );
+              })}
+              <p className="text-xs text-gray-400 pt-1">2-manna: 35% + 15% · 4-manna: 20% + 15% + 10% + 5%</p>
+            </div>
+          )}
 
           <div className="relative">
             <input type="search" placeholder="Sök registrerad spelare..." value={search}
