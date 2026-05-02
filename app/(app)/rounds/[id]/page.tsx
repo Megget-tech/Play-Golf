@@ -34,6 +34,39 @@ function scoreBadge(strokes: number, par: number) {
   return { label: `+${diff}`, cls: "bg-red-500 text-white" };
 }
 
+function ScoreSymbol({ strokes, par }: { strokes: number; par: number }) {
+  const diff = strokes - par;
+  const n = <span className="font-bold text-xs leading-none">{strokes}</span>;
+  if (strokes === 1) {
+    return (
+      <span className="inline-flex items-center justify-center w-8 h-8 rounded-full border-2 border-yellow-500">
+        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full border-2 border-yellow-500 text-yellow-600 font-bold text-xs">{strokes}</span>
+      </span>
+    );
+  }
+  if (diff <= -2) {
+    return (
+      <span className="inline-flex items-center justify-center w-8 h-8 rounded-full border-2 border-green-600">
+        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full border-2 border-green-600 text-green-700 font-bold text-xs">{strokes}</span>
+      </span>
+    );
+  }
+  if (diff === -1) {
+    return <span className="inline-flex items-center justify-center w-7 h-7 rounded-full border-2 border-green-500 text-green-700 font-bold text-xs">{strokes}</span>;
+  }
+  if (diff === 0) {
+    return <span className="font-bold text-xs text-gray-600">{strokes}</span>;
+  }
+  if (diff === 1) {
+    return <span className="inline-flex items-center justify-center w-7 h-7 border-2 border-red-500 text-red-700 font-bold text-xs">{strokes}</span>;
+  }
+  return (
+    <span className="inline-flex items-center justify-center w-8 h-8 border-2 border-red-600">
+      <span className="inline-flex items-center justify-center w-5 h-5 border-2 border-red-600 text-red-700 font-bold text-xs">{strokes}</span>
+    </span>
+  );
+}
+
 function calcScrambleHcp(teamPlayers: Player[]): string {
   const hcps = teamPlayers
     .map((p) => p.handicap_index ?? 0)
@@ -277,10 +310,9 @@ export default function ScorecardPage() {
                         {scrambleTeams.map((t) => {
                           const s = getTeamScore(t.players, h.id);
                           if (!s) return <td key={t.key} className="px-2 py-2 text-center text-gray-300">—</td>;
-                          const { cls } = scoreBadge(s, h.par);
                           return (
                             <td key={t.key} className="px-2 py-2 text-center">
-                              <span className={`inline-flex w-7 h-7 rounded-full items-center justify-center font-bold ${cls}`}>{s}</span>
+                              <ScoreSymbol strokes={s} par={h.par} />
                             </td>
                           );
                         })}
@@ -356,12 +388,11 @@ export default function ScorecardPage() {
                               {extra > 0 && <div className="text-yellow-400 text-xs mb-0.5">+{extra}</div>}—
                             </td>
                           );
-                          const { cls } = scoreBadge(s, h.par);
                           const pts = stablefordPoints(s, h.par, extra);
                           return (
                             <td key={p.user_id} className="px-2 py-1.5 text-center">
                               {extra > 0 && <div className="text-yellow-600 text-xs mb-0.5 font-semibold">+{extra}</div>}
-                              <span className={`inline-flex w-7 h-7 rounded-full items-center justify-center font-bold ${cls}`}>{s}</span>
+                              <ScoreSymbol strokes={s} par={h.par} />
                               <div className="text-green-600 text-xs mt-0.5 font-semibold">{pts}p</div>
                             </td>
                           );
@@ -444,11 +475,10 @@ export default function ScorecardPage() {
                   {extra > 0 && <div className="text-yellow-500 text-xs">+{extra}</div>}—
                 </td>
               );
-              const { cls } = scoreBadge(gross, h.par);
               return (
                 <td key={p.user_id} className={`px-2 py-1.5 text-center ${rowBg}`}>
                   {extra > 0 && <div className="text-yellow-600 text-xs font-semibold">+{extra}</div>}
-                  <span className={`inline-flex w-7 h-7 rounded-full items-center justify-center font-bold ${cls}`}>{gross}</span>
+                  <ScoreSymbol strokes={gross} par={h.par} />
                   <div className="text-xs mt-0.5 text-gray-400">{gross - extra}</div>
                 </td>
               );

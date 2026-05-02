@@ -74,12 +74,20 @@ export default function TournamentsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    createClient()
-      .from("tournaments")
-      .select("id, name, format, start_date")
-      .order("created_at", { ascending: false })
-      .limit(50)
-      .then(({ data }) => { setTournaments(data ?? []); setLoading(false); });
+    async function load() {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setLoading(false); return; }
+      const { data } = await supabase
+        .from("tournaments")
+        .select("id, name, format, start_date")
+        .eq("created_by", user.id)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      setTournaments(data ?? []);
+      setLoading(false);
+    }
+    load();
   }, []);
 
   async function deleteTournament(id: string) {
