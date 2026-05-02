@@ -8,6 +8,7 @@ type Round = { id: string; date: string; format: string; courses: { name: string
 
 const FORMAT_LABEL: Record<string, string> = {
   stroke: "Slagspel", scramble: "Scramble", matchplay: "Match",
+  poangbogey: "Poängbogey", skins: "Skins", wolf: "Wolf", kopenhamnare: "Köpenhamnare",
 };
 
 function formatDate(d: string) {

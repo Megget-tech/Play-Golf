@@ -36,7 +36,6 @@ function scoreBadge(strokes: number, par: number) {
 
 function ScoreSymbol({ strokes, par }: { strokes: number; par: number }) {
   const diff = strokes - par;
-  const n = <span className="font-bold text-xs leading-none">{strokes}</span>;
   if (strokes === 1) {
     return (
       <span className="inline-flex items-center justify-center w-8 h-8 rounded-full border-2 border-yellow-500">
@@ -77,6 +76,31 @@ function calcScrambleHcp(teamPlayers: Player[]): string {
   return "—";
 }
 
+// ── Poångbogey ───────────────────────────────────────────────────────────────
+function matchVsParHole(strokes: number, par: number, extra: number): 1 | 0 | -1 {
+  const net = strokes - extra;
+  return net < par ? 1 : net > par ? -1 : 0;
+}
+
+// ── Skins ─────────────────────────────────────────────────────────────────────
+function computeSkins(
+  holes: Hole[], scores: ScoreMap, players: { user_id: string }[]
+): { holeId: string; winner: string | null; skinValue: number }[] {
+  let carry = 0;
+  return holes.map((h) => {
+    const value = 1 + carry;
+    const ss = players
+      .map((p) => ({ uid: p.user_id, s: scores[h.id]?.[p.user_id] }))
+      .filter((x) => x.s !== undefined) as { uid: string; s: number }[];
+    if (ss.length < 2) { carry++; return { holeId: h.id, winner: null, skinValue: value }; }
+    const min = Math.min(...ss.map((x) => x.s));
+    const winners = ss.filter((x) => x.s === min);
+    if (winners.length === 1) { carry = 0; return { holeId: h.id, winner: winners[0].uid, skinValue: value }; }
+    carry++;
+    return { holeId: h.id, winner: null, skinValue: value };
+  });
+}
+
 export default function ScorecardPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -92,6 +116,19 @@ export default function ScorecardPage() {
   const [saving, setSaving] = useState(false);
   const [teeDistances, setTeeDistances] = useState<TeeDistances>({});
   const [showMenu, setShowMenu] = useState(false);
+  const [wolfDecisions, setWolfDecisions] = useState<Record<string, { partnerUserId: string | null }>>({});
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(`wolf_${id}`);
+      if (saved) setWolfDecisions(JSON.parse(saved));
+    } catch {}
+  }, [id]);
+
+  useEffect(() => {
+    if (format !== "wolf" || Object.keys(wolfDecisions).length === 0) return;
+    localStorage.setItem(`wolf_${id}`, JSON.stringify(wolfDecisions));
+  }, [wolfDecisions, format, id]);
 
   useEffect(() => {
     async function load() {
@@ -235,6 +272,72 @@ export default function ScorecardPage() {
       if (!s) return sum;
       return sum + stablefordPoints(s, h.par, strokesOnHole(hcp, h.stroke_index));
     }, 0);
+  }
+
+  // ── Poångbogey running score ──────────────────────────────────────────────
+  function matchVsParTotal(uid: string): number {
+    const p = players.find((pl) => pl.user_id === uid);
+    const hcp = courseHcp(p?.handicap_index ?? null);
+    return holes.reduce((sum, h) => {
+      const g = scores[h.id]?.[uid];
+      if (!g) return sum;
+      return sum + matchVsParHole(g, h.par, strokesOnHole(hcp, h.stroke_index));
+    }, 0);
+  }
+
+  // ── Wolf helpers ──────────────────────────────────────────────────────────
+  function wolfForHole(holeIndex: number): Player | undefined {
+    return players[holeIndex % players.length];
+  }
+
+  function computeWolfPoints(): Record<string, number> {
+    const pts: Record<string, number> = {};
+    players.forEach((p) => { pts[p.user_id] = 0; });
+    for (let i = 0; i < holes.length; i++) {
+      const h = holes[i];
+      const wolf = wolfForHole(i);
+      if (!wolf) continue;
+      const decision = wolfDecisions[h.id];
+      if (!decision) continue;
+      const wolfSide = decision.partnerUserId ? [wolf.user_id, decision.partnerUserId] : [wolf.user_id];
+      const otherSide = players.map((p) => p.user_id).filter((u) => !wolfSide.includes(u));
+      const bestNet = (uids: string[]) => Math.min(...uids.map((u) => {
+        const g = scores[h.id]?.[u];
+        if (!g) return Infinity;
+        const pl = players.find((p) => p.user_id === u);
+        return g - strokesOnHole(courseHcp(pl?.handicap_index ?? null), h.stroke_index);
+      }));
+      const wn = bestNet(wolfSide), on = bestNet(otherSide);
+      if (!isFinite(wn) || !isFinite(on)) continue;
+      if (decision.partnerUserId) {
+        if (wn < on) wolfSide.forEach((u) => { pts[u] += 1; });
+        else if (on < wn) otherSide.forEach((u) => { pts[u] += 1; });
+      } else {
+        if (wn < on) pts[wolf.user_id] += 3;
+        else if (on < wn) otherSide.forEach((u) => { pts[u] += 1; });
+      }
+    }
+    return pts;
+  }
+
+  // ── Köpenhamnare hole results ─────────────────────────────────────────────
+  function kopenhamnareResults(redPs: Player[], bluePs: Player[]): ("red" | "blue" | "halved" | null)[] {
+    return holes.map((h) => {
+      const teamNet = (tp: Player[]) => {
+        let sum = 0;
+        for (const p of tp) {
+          const g = scores[h.id]?.[p.user_id];
+          if (!g) return null;
+          sum += g - strokesOnHole(courseHcp(p.handicap_index), h.stroke_index);
+        }
+        return sum;
+      };
+      const r = teamNet(redPs), b = teamNet(bluePs);
+      if (r === null || b === null) return null;
+      if (r < b) return "red";
+      if (b < r) return "blue";
+      return "halved";
+    });
   }
 
   async function abortRound() {
@@ -586,6 +689,291 @@ export default function ScorecardPage() {
             );
           })()}
 
+          {/* Poångbogey summary */}
+          {format === "poangbogey" && (
+            <section className="px-2">
+              <h2 className="text-xs font-semibold text-gray-500 uppercase mb-2">Slutresultat – Poångbogey</h2>
+              <div className="space-y-2 mb-4">
+                {[...players].sort((a, b) => matchVsParTotal(b.user_id) - matchVsParTotal(a.user_id)).map((p, i) => {
+                  const mvp = matchVsParTotal(p.user_id);
+                  return (
+                    <div key={p.user_id} className="bg-white rounded-2xl shadow-md px-4 py-3 flex items-center gap-3">
+                      <span className="text-sm font-bold text-gray-400 w-5">{i + 1}</span>
+                      <div className="flex-1">
+                        <p className="font-semibold text-gray-800 text-sm">{p.name}</p>
+                        <p className="text-xs text-gray-400">HCP {courseHcp(p.handicap_index)}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className={`text-2xl font-bold ${mvp > 0 ? "text-green-600" : mvp < 0 ? "text-red-500" : "text-gray-500"}`}>
+                          {mvp > 0 ? `+${mvp}` : mvp === 0 ? "±0" : mvp}
+                        </p>
+                        <p className="text-xs text-gray-400">{mvp > 0 ? "up" : mvp < 0 ? "dn" : "all sq"}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-xs bg-white rounded-2xl shadow overflow-hidden">
+                  <thead>
+                    <tr className="bg-green-800 text-white">
+                      <th className="px-3 py-2 text-left sticky left-0 bg-green-800">Hål</th>
+                      <th className="px-2 py-2">Par</th>
+                      <th className="px-2 py-2">SI</th>
+                      {players.map((p) => <th key={p.user_id} className="px-2 py-2 min-w-14 text-center">{p.name.split(" ")[0]}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {holes.map((h, i) => (
+                      <tr key={h.id} className={i % 2 === 0 ? "bg-white" : "bg-green-50"}>
+                        <td className="px-3 py-2 font-semibold text-gray-700 sticky left-0 bg-inherit">{h.hole_number}</td>
+                        <td className="px-2 py-2 text-center text-gray-500">{h.par}</td>
+                        <td className="px-2 py-2 text-center text-gray-400">{h.stroke_index ?? "—"}</td>
+                        {players.map((p) => {
+                          const g = scores[h.id]?.[p.user_id];
+                          const extra = strokesOnHole(courseHcp(p.handicap_index), h.stroke_index);
+                          if (!g) return <td key={p.user_id} className="px-2 py-2 text-center text-gray-300">—</td>;
+                          const res = matchVsParHole(g, h.par, extra);
+                          return (
+                            <td key={p.user_id} className="px-2 py-1.5 text-center">
+                              <ScoreSymbol strokes={g} par={h.par} />
+                              <div className={`text-xs font-bold mt-0.5 ${res > 0 ? "text-green-600" : res < 0 ? "text-red-500" : "text-gray-400"}`}>
+                                {res > 0 ? "W" : res < 0 ? "L" : "H"}
+                              </div>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                    <tr className="bg-green-900 text-white font-bold">
+                      <td className="px-3 py-2 sticky left-0 bg-green-900" colSpan={3}>Tot</td>
+                      {players.map((p) => {
+                        const mvp = matchVsParTotal(p.user_id);
+                        return (
+                          <td key={p.user_id} className="px-2 py-2 text-center">
+                            <div>{mvp > 0 ? `+${mvp}` : mvp}</div>
+                            <div className={`text-xs font-normal ${mvp > 0 ? "text-green-300" : mvp < 0 ? "text-red-300" : "text-gray-400"}`}>{mvp > 0 ? "up" : mvp < 0 ? "dn" : "="}</div>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
+
+          {/* Skins summary */}
+          {format === "skins" && (() => {
+            const allSkins = computeSkins(holes, scores, players);
+            const totalWon: Record<string, number> = {};
+            players.forEach((p) => { totalWon[p.user_id] = 0; });
+            allSkins.forEach((s) => { if (s.winner) totalWon[s.winner] = (totalWon[s.winner] ?? 0) + s.skinValue; });
+            const totalSkins = allSkins.filter((s) => s.winner).reduce((sum, s) => sum + s.skinValue, 0);
+            return (
+              <section className="px-2">
+                <h2 className="text-xs font-semibold text-gray-500 uppercase mb-2">Skins</h2>
+                <div className="space-y-2 mb-4">
+                  {[...players].sort((a, b) => (totalWon[b.user_id] ?? 0) - (totalWon[a.user_id] ?? 0)).map((p, i) => (
+                    <div key={p.user_id} className="bg-white rounded-2xl shadow-md px-4 py-3 flex items-center gap-3">
+                      <span className="text-sm font-bold text-gray-400 w-5">{i + 1}</span>
+                      <div className="flex-1">
+                        <p className="font-semibold text-gray-800 text-sm">{p.name}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-2xl font-bold text-orange-600">{totalWon[p.user_id] ?? 0}</p>
+                        <p className="text-xs text-gray-400">huvor</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="bg-white rounded-2xl shadow-md px-4 py-3">
+                  <p className="text-xs font-semibold text-gray-500 uppercase mb-3">Hål för hål · {totalSkins} huvor spelade</p>
+                  <div className="flex flex-wrap gap-x-2 gap-y-3">
+                    {allSkins.map((skin, i) => {
+                      const h = holes[i];
+                      const winner = players.find((p) => p.user_id === skin.winner);
+                      return (
+                        <div key={skin.holeId} className="flex flex-col items-center w-8">
+                          <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${skin.winner ? "bg-orange-500 text-white" : "bg-gray-100 text-gray-400"}`}>
+                            {h.hole_number}
+                          </span>
+                          <span className="text-xs mt-0.5 font-semibold text-orange-600 leading-tight text-center">
+                            {skin.winner ? (skin.skinValue > 1 ? `${winner?.name.split(" ")[0]} ×${skin.skinValue}` : winner?.name.split(" ")[0]) : skin.skinValue > 1 ? `(${skin.skinValue})` : ""}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </section>
+            );
+          })()}
+
+          {/* Wolf summary */}
+          {format === "wolf" && (() => {
+            const wolfPts = computeWolfPoints();
+            return (
+              <section className="px-2">
+                <h2 className="text-xs font-semibold text-gray-500 uppercase mb-2">Wolf – Resultat</h2>
+                <div className="space-y-2 mb-4">
+                  {[...players].sort((a, b) => (wolfPts[b.user_id] ?? 0) - (wolfPts[a.user_id] ?? 0)).map((p, i) => (
+                    <div key={p.user_id} className="bg-white rounded-2xl shadow-md px-4 py-3 flex items-center gap-3">
+                      <span className="text-sm font-bold text-gray-400 w-5">{i + 1}</span>
+                      <div className="flex-1">
+                        <p className="font-semibold text-gray-800 text-sm">{p.name}</p>
+                        <p className="text-xs text-gray-400">HCP {courseHcp(p.handicap_index)}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-2xl font-bold text-yellow-600">{wolfPts[p.user_id] ?? 0}</p>
+                        <p className="text-xs text-gray-400">poäng</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-xs bg-white rounded-2xl shadow overflow-hidden">
+                    <thead>
+                      <tr className="bg-green-800 text-white">
+                        <th className="px-3 py-2 text-left sticky left-0 bg-green-800">Hål</th>
+                        <th className="px-2 py-2">Wolf</th>
+                        <th className="px-2 py-2">Partner</th>
+                        <th className="px-2 py-2">Vinnare</th>
+                        {players.map((p) => <th key={p.user_id} className="px-2 py-2 min-w-10 text-center">{p.name.split(" ")[0]}</th>)}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {holes.map((h, i) => {
+                        const wolf = wolfForHole(i);
+                        const decision = wolfDecisions[h.id];
+                        const partner = decision?.partnerUserId ? players.find((p) => p.user_id === decision.partnerUserId) : null;
+                        const wolfSide = decision ? (decision.partnerUserId ? [wolf!.user_id, decision.partnerUserId] : [wolf!.user_id]) : [];
+                        const otherSide = players.map((p) => p.user_id).filter((u) => !wolfSide.includes(u));
+                        let holeWinnerSide: "wolf" | "other" | "halved" | null = null;
+                        if (decision && wolf) {
+                          const bestNet = (uids: string[]) => Math.min(...uids.map((u) => { const g = scores[h.id]?.[u]; if (!g) return Infinity; const pl = players.find((p) => p.user_id === u); return g - strokesOnHole(courseHcp(pl?.handicap_index ?? null), h.stroke_index); }));
+                          const wn = bestNet(wolfSide), on = bestNet(otherSide);
+                          if (isFinite(wn) && isFinite(on)) holeWinnerSide = wn < on ? "wolf" : on < wn ? "other" : "halved";
+                        }
+                        return (
+                          <tr key={h.id} className={i % 2 === 0 ? "bg-white" : "bg-green-50"}>
+                            <td className="px-3 py-2 font-semibold text-gray-700 sticky left-0 bg-inherit">{h.hole_number}</td>
+                            <td className="px-2 py-2 text-center">⚡ {wolf?.name.split(" ")[0]}</td>
+                            <td className="px-2 py-2 text-center text-gray-600">{decision ? (partner ? partner.name.split(" ")[0] : "Lone") : "—"}</td>
+                            <td className={`px-2 py-2 text-center font-semibold ${holeWinnerSide === "wolf" ? "text-yellow-600" : holeWinnerSide === "other" ? "text-gray-600" : "text-gray-400"}`}>
+                              {holeWinnerSide === "wolf" ? "Wolf" : holeWinnerSide === "other" ? "Andra" : holeWinnerSide === "halved" ? "=" : "—"}
+                            </td>
+                            {players.map((p) => {
+                              const g = scores[h.id]?.[p.user_id];
+                              if (!g) return <td key={p.user_id} className="px-2 py-2 text-center text-gray-300">—</td>;
+                              return <td key={p.user_id} className="px-2 py-2 text-center"><ScoreSymbol strokes={g} par={h.par} /></td>;
+                            })}
+                          </tr>
+                        );
+                      })}
+                      <tr className="bg-green-900 text-white font-bold">
+                        <td className="px-3 py-2 sticky left-0 bg-green-900" colSpan={4}>Tot</td>
+                        {players.map((p) => (
+                          <td key={p.user_id} className="px-2 py-2 text-center text-yellow-300">{wolfPts[p.user_id] ?? 0}p</td>
+                        ))}
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            );
+          })()}
+
+          {/* Köpenhamnare summary */}
+          {format === "kopenhamnare" && (() => {
+            const redPs = players.filter((p) => p.team === "red");
+            const bluePs = players.filter((p) => p.team === "blue");
+            const holeResults = kopenhamnareResults(redPs, bluePs);
+            let redUp = 0;
+            const running: number[] = [];
+            for (const hr of holeResults) { if (hr === "red") redUp++; else if (hr === "blue") redUp--; running.push(redUp); }
+            const played = holeResults.filter((r) => r !== null).length;
+            const redWins = holeResults.filter((r) => r === "red").length;
+            const blueWins = holeResults.filter((r) => r === "blue").length;
+            const halveds = holeResults.filter((r) => r === "halved").length;
+            const left = holes.length - played;
+            let label: string, bannerCls: string;
+            if (redUp > 0) { label = redUp > left ? `Rött vann ${redUp}&${left}` : `Rött leder ${redUp} up${left > 0 ? ` · ${left} kvar` : ""}`; bannerCls = "bg-red-600"; }
+            else if (redUp < 0) { const bu = -redUp; label = bu > left ? `Blått vann ${bu}&${left}` : `Blått leder ${bu} up${left > 0 ? ` · ${left} kvar` : ""}`; bannerCls = "bg-blue-600"; }
+            else { label = played === 0 ? "Inga hål spelade" : left > 0 ? `All square · ${left} kvar` : "All square"; bannerCls = "bg-gray-500"; }
+
+            const teamNetSum = (tp: Player[], h: Hole) => {
+              let sum = 0;
+              for (const p of tp) { const g = scores[h.id]?.[p.user_id]; if (!g) return null; sum += g - strokesOnHole(courseHcp(p.handicap_index), h.stroke_index); }
+              return sum;
+            };
+
+            return (
+              <section className="px-2 space-y-4">
+                <div className={`${bannerCls} text-white rounded-2xl px-4 py-5 text-center`}>
+                  <p className="text-2xl font-bold">{label}</p>
+                  <p className="text-sm opacity-80 mt-1">Rött {redWins} – {halveds} – {blueWins} Blått · Kombinerat netto</p>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-xs bg-white rounded-2xl shadow overflow-hidden">
+                    <thead>
+                      <tr className="bg-green-800 text-white">
+                        <th className="px-2 py-2 text-left sticky left-0 bg-green-800">Hål</th>
+                        <th className="px-2 py-2">Par</th>
+                        {redPs.map((p) => <th key={p.user_id} className="px-2 py-2 text-red-300 min-w-12">{p.name.split(" ")[0]}</th>)}
+                        <th className="px-2 py-2 text-red-200">Sum R</th>
+                        <th className="px-2 py-2">Res</th>
+                        <th className="px-2 py-2 text-blue-200">Sum B</th>
+                        {bluePs.map((p) => <th key={p.user_id} className="px-2 py-2 text-blue-300 min-w-12">{p.name.split(" ")[0]}</th>)}
+                        <th className="px-2 py-2">Match</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {holes.map((h, i) => {
+                        const result = holeResults[i];
+                        const sc = running[i];
+                        const rowBg = result === "red" ? "bg-red-50" : result === "blue" ? "bg-blue-50" : i % 2 === 0 ? "bg-white" : "bg-green-50";
+                        const matchTxt = result === null ? "" : sc === 0 ? "=" : sc > 0 ? `R${sc}up` : `B${-sc}up`;
+                        const matchCls = sc > 0 ? "text-red-600" : sc < 0 ? "text-blue-600" : "text-gray-400";
+                        const rSum = teamNetSum(redPs, h);
+                        const bSum = teamNetSum(bluePs, h);
+                        return (
+                          <tr key={h.id}>
+                            <td className={`px-2 py-1.5 font-semibold text-gray-700 sticky left-0 ${rowBg}`}>{h.hole_number}</td>
+                            <td className={`px-2 py-1.5 text-center text-gray-500 ${rowBg}`}>{h.par}</td>
+                            {redPs.map((p) => {
+                              const g = scores[h.id]?.[p.user_id];
+                              return <td key={p.user_id} className={`px-2 py-1.5 text-center ${rowBg}`}>{g ? <ScoreSymbol strokes={g} par={h.par} /> : <span className="text-gray-300">—</span>}</td>;
+                            })}
+                            <td className={`px-2 py-1.5 text-center font-semibold text-red-700 ${rowBg}`}>{rSum ?? "—"}</td>
+                            <td className={`px-2 py-1.5 text-center font-bold ${rowBg} ${result === "red" ? "text-red-600" : result === "blue" ? "text-blue-600" : "text-gray-400"}`}>
+                              {result === "red" ? "R" : result === "blue" ? "B" : result === "halved" ? "=" : ""}
+                            </td>
+                            <td className={`px-2 py-1.5 text-center font-semibold text-blue-700 ${rowBg}`}>{bSum ?? "—"}</td>
+                            {bluePs.map((p) => {
+                              const g = scores[h.id]?.[p.user_id];
+                              return <td key={p.user_id} className={`px-2 py-1.5 text-center ${rowBg}`}>{g ? <ScoreSymbol strokes={g} par={h.par} /> : <span className="text-gray-300">—</span>}</td>;
+                            })}
+                            <td className={`px-2 py-1.5 text-center font-semibold text-xs ${rowBg} ${matchCls}`}>{matchTxt}</td>
+                          </tr>
+                        );
+                      })}
+                      <tr className="bg-green-900 text-white font-bold">
+                        <td className="px-2 py-2 sticky left-0 bg-green-900" colSpan={2}>Tot</td>
+                        {redPs.map((p) => { const { total } = totalScore(p.user_id); return <td key={p.user_id} className="px-2 py-2 text-center">{total || "—"}</td>; })}
+                        <td className="px-2 py-2 text-center text-red-300">{redWins}W</td>
+                        <td className="px-2 py-2 text-center text-xs"><div className="text-gray-400">{halveds}=</div></td>
+                        <td className="px-2 py-2 text-center text-blue-300">{blueWins}W</td>
+                        {bluePs.map((p) => { const { total } = totalScore(p.user_id); return <td key={p.user_id} className="px-2 py-2 text-center">{total || "—"}</td>; })}
+                        <td className="px-2 py-2" />
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            );
+          })()}
+
           <div className="px-2 space-y-2">
             <button onClick={() => setCurrentHole(holes.length - 1)} className="w-full bg-white text-green-700 border border-green-300 rounded-2xl py-3 font-semibold text-sm">
               ← Tillbaka till sista hålet
@@ -665,15 +1053,88 @@ export default function ScorecardPage() {
           );
         })}
 
-        {/* Stroke: one card per player */}
-        {format === "stroke" && players.map((p) => {
+        {/* Wolf: banner + partner picker */}
+        {format === "wolf" && (() => {
+          const wolf = wolfForHole(currentHole);
+          if (!wolf) return null;
+          const decision = wolfDecisions[hole.id];
+          const others = players.filter((p) => p.user_id !== wolf.user_id);
+          const partner = decision?.partnerUserId ? players.find((p) => p.user_id === decision.partnerUserId) : null;
+          const otherSideNames = others.filter((p) => p.user_id !== decision?.partnerUserId).map((p) => p.name.split(" ")[0]).join(" & ");
+          return (
+            <div className="space-y-2">
+              <div className="bg-yellow-500 text-white rounded-2xl px-4 py-3 flex items-center justify-between">
+                <div>
+                  <p className="text-xs opacity-80">Wolf detta hål</p>
+                  <p className="font-bold text-base">⚡ {wolf.name}</p>
+                  {decision && (
+                    <p className="text-xs opacity-80 mt-0.5">
+                      {partner ? `Med ${partner.name.split(" ")[0]} vs ${otherSideNames}` : `Lone Wolf vs alla`}
+                    </p>
+                  )}
+                </div>
+                {decision && (
+                  <button onClick={() => setWolfDecisions((prev) => { const n = { ...prev }; delete n[hole.id]; return n; })}
+                    className="text-xs bg-white/20 px-2 py-1 rounded-lg">Ändra</button>
+                )}
+              </div>
+              {!decision && (
+                <div className="bg-white rounded-2xl shadow-md px-4 py-3">
+                  <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Wolf väljer partner</p>
+                  <div className="space-y-1.5">
+                    {others.map((p) => (
+                      <button key={p.user_id}
+                        onClick={() => setWolfDecisions((prev) => ({ ...prev, [hole.id]: { partnerUserId: p.user_id } }))}
+                        className="w-full text-left px-4 py-2.5 rounded-xl bg-green-50 text-green-800 font-semibold text-sm">
+                        {p.name} <span className="text-green-600 font-normal text-xs">HCP {courseHcp(p.handicap_index)}</span>
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => setWolfDecisions((prev) => ({ ...prev, [hole.id]: { partnerUserId: null } }))}
+                      className="w-full text-left px-4 py-2.5 rounded-xl bg-yellow-50 text-yellow-800 font-bold text-sm">
+                      ⚡ Lone Wolf – kör ensam
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* Skins: show current skin value banner */}
+        {format === "skins" && (() => {
+          const allSkins = computeSkins(holes, scores, players);
+          const skinValue = allSkins[currentHole]?.skinValue ?? 1;
+          const totalWon: Record<string, number> = {};
+          players.forEach((p) => { totalWon[p.user_id] = 0; });
+          allSkins.slice(0, currentHole).forEach((s) => { if (s.winner) totalWon[s.winner] = (totalWon[s.winner] ?? 0) + s.skinValue; });
+          const leader = [...players].sort((a, b) => (totalWon[b.user_id] ?? 0) - (totalWon[a.user_id] ?? 0))[0];
+          return (
+            <div className="bg-orange-500 text-white rounded-2xl px-4 py-3 flex items-center justify-between">
+              <div>
+                <p className="text-xs opacity-80">Huva detta hål</p>
+                <p className="text-3xl font-bold">{skinValue}</p>
+              </div>
+              {(totalWon[leader?.user_id ?? ""] ?? 0) > 0 && (
+                <div className="text-right">
+                  <p className="text-xs opacity-80">Leder</p>
+                  <p className="font-bold">{leader.name.split(" ")[0]} · {totalWon[leader.user_id]}st</p>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* Stroke / Poångbogey / Skins / Wolf: one card per player */}
+        {(format === "stroke" || format === "poangbogey" || format === "skins" || format === "wolf") && players.map((p) => {
           const val = scores[hole.id]?.[p.user_id] ?? 0;
           const { total, diff } = totalScore(p.user_id);
           const badge = val > 0 ? scoreBadge(val, hole.par) : null;
           const hcp = courseHcp(p.handicap_index);
           const extra = strokesOnHole(hcp, hole.stroke_index);
-          const stablePts = val > 0 ? stablefordPoints(val, hole.par, extra) : null;
-          const totalSt = totalStableford(p.user_id);
+          const stablePts = format === "stroke" && val > 0 ? stablefordPoints(val, hole.par, extra) : null;
+          const totalSt = format === "stroke" ? totalStableford(p.user_id) : 0;
+          const mvp = format === "poangbogey" ? matchVsParTotal(p.user_id) : null;
           return (
             <div key={p.user_id} className="bg-white rounded-2xl shadow-md px-4 py-4">
               <div className="flex items-start justify-between mb-3">
@@ -681,6 +1142,10 @@ export default function ScorecardPage() {
                   <div className="flex items-center gap-2">
                     <p className="font-semibold text-gray-800 truncate">{p.name}</p>
                     {extra > 0 && <span className="shrink-0 text-xs bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-full font-bold">+{extra}</span>}
+                    {format === "wolf" && (() => {
+                      const wolf = wolfForHole(currentHole);
+                      return wolf?.user_id === p.user_id ? <span className="shrink-0 text-xs bg-yellow-400 text-yellow-900 px-1.5 py-0.5 rounded-full font-bold">⚡ Wolf</span> : null;
+                    })()}
                   </div>
                   <div className="flex items-center gap-2 mt-0.5">
                     <span className="text-xs text-gray-400">HCP {hcp}</span>
@@ -698,7 +1163,10 @@ export default function ScorecardPage() {
                     {badge && <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${badge.cls}`}>{badge.label}</span>}
                     {stablePts !== null && <span className="text-xs font-bold bg-green-100 text-green-700 px-2 py-0.5 rounded-full">{stablePts}p</span>}
                   </div>
-                  <p className="text-xs text-gray-400">{total > 0 ? `${diff > 0 ? "+" : ""}${diff === 0 ? "par" : diff}` : "—"} · {totalSt}p tot</p>
+                  {format === "stroke" && <p className="text-xs text-gray-400">{total > 0 ? `${diff > 0 ? "+" : ""}${diff === 0 ? "par" : diff}` : "—"} · {totalSt}p tot</p>}
+                  {format === "poangbogey" && <p className={`text-xs font-semibold ${mvp! > 0 ? "text-green-600" : mvp! < 0 ? "text-red-500" : "text-gray-400"}`}>{mvp! > 0 ? `+${mvp} up` : mvp! < 0 ? `${mvp} dn` : "all sq"}</p>}
+                  {format === "skins" && <p className="text-xs text-gray-400">{total > 0 ? `${diff > 0 ? "+" : ""}${diff === 0 ? "par" : diff}` : "—"}</p>}
+                  {format === "wolf" && <p className="text-xs text-gray-400">{total > 0 ? `${diff > 0 ? "+" : ""}${diff === 0 ? "par" : diff}` : "—"}</p>}
                 </div>
               </div>
               <div className="flex items-center gap-4">
@@ -710,8 +1178,8 @@ export default function ScorecardPage() {
           );
         })}
 
-        {/* Matchplay: compact side-by-side layout */}
-        {format === "matchplay" && (() => {
+        {/* Matchplay / Köpenhamnare: compact side-by-side layout */}
+        {(format === "matchplay" || format === "kopenhamnare") && (() => {
           const redPs = players.filter((p) => p.team === "red");
           const bluePs = players.filter((p) => p.team === "blue");
 
@@ -719,14 +1187,28 @@ export default function ScorecardPage() {
           let liveRedUp = 0;
           for (let i = 0; i < currentHole; i++) {
             const h = holes[i];
-            const bestNet = (tp: Player[]) => Math.min(...tp.map((p) => {
-              const g = scores[h.id]?.[p.user_id];
-              return g ? g - strokesOnHole(courseHcp(p.handicap_index), h.stroke_index) : Infinity;
-            }));
-            const r = bestNet(redPs), b = bestNet(bluePs);
-            if (isFinite(r) || isFinite(b)) {
-              if (r < b) liveRedUp++;
-              else if (b < r) liveRedUp--;
+            if (format === "matchplay") {
+              const bestNet = (tp: Player[]) => Math.min(...tp.map((p) => {
+                const g = scores[h.id]?.[p.user_id];
+                return g ? g - strokesOnHole(courseHcp(p.handicap_index), h.stroke_index) : Infinity;
+              }));
+              const r = bestNet(redPs), b = bestNet(bluePs);
+              if (isFinite(r) || isFinite(b)) {
+                if (r < b) liveRedUp++;
+                else if (b < r) liveRedUp--;
+              }
+            } else {
+              // köpenhamnare: combined net
+              const teamNet = (tp: Player[]) => {
+                let sum = 0;
+                for (const p of tp) { const g = scores[h.id]?.[p.user_id]; if (!g) return null; sum += g - strokesOnHole(courseHcp(p.handicap_index), h.stroke_index); }
+                return sum;
+              };
+              const r = teamNet(redPs), b = teamNet(bluePs);
+              if (r !== null && b !== null) {
+                if (r < b) liveRedUp++;
+                else if (b < r) liveRedUp--;
+              }
             }
           }
           const holesLeft = holes.length - currentHole - 1;

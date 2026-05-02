@@ -5,8 +5,12 @@ import { createClient } from "@/lib/supabase";
 
 const FORMATS = [
   { value: "stroke", label: "Slagspel", desc: "Räkna slag per runda" },
+  { value: "poangbogey", label: "Poängbogey", desc: "Individuellt matchspel mot par" },
+  { value: "skins", label: "Skins", desc: "Varje hål ger en skin, oavgjort ger carry" },
+  { value: "wolf", label: "Wolf", desc: "Roterande wolf väljer partner per hål" },
   { value: "scramble", label: "Scramble", desc: "Laget spelar från bästa bollen" },
   { value: "matchplay", label: "Match / Ryder Cup", desc: "Rött vs Blått lag, poängbaserat" },
+  { value: "kopenhamnare", label: "Köpenhamnare", desc: "Lag – kombinerat netto per hål" },
 ];
 
 const TEE_COLORS: Record<string, string> = {
@@ -309,17 +313,17 @@ function NewRoundInner() {
                   </div>
                 )}
 
-                {(format === "matchplay" || format === "scramble") && (
+                {(format === "matchplay" || format === "scramble" || format === "kopenhamnare") && (
                   <div>
                     <p className="text-xs text-gray-500 mb-1.5">{format === "matchplay" ? "Lag" : "Scramble-lag"}</p>
                     <div className="flex gap-2">
                       <button onClick={() => setTeam(p.id, "red")}
                         className={`flex-1 rounded-lg py-1.5 text-xs font-bold transition-colors ${p.team === "red" ? "bg-red-600 text-white" : "bg-red-50 text-red-600"}`}>
-                        {format === "matchplay" ? "RÖTT" : "LAG A"}
+                        {format === "matchplay" ? "RÖTT" : format === "kopenhamnare" ? "LAG RÖTT" : "LAG A"}
                       </button>
                       <button onClick={() => setTeam(p.id, "blue")}
                         className={`flex-1 rounded-lg py-1.5 text-xs font-bold transition-colors ${p.team === "blue" ? "bg-blue-600 text-white" : "bg-blue-50 text-blue-600"}`}>
-                        {format === "matchplay" ? "BLÅTT" : "LAG B"}
+                        {format === "matchplay" ? "BLÅTT" : format === "kopenhamnare" ? "LAG BLÅTT" : "LAG B"}
                       </button>
                     </div>
                   </div>
@@ -327,6 +331,15 @@ function NewRoundInner() {
               </li>
             ))}
           </ul>
+
+          {/* Wolf rotation info */}
+          {format === "wolf" && players.length > 0 && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-2xl px-4 py-3 mb-3 text-sm">
+              <p className="text-xs font-semibold text-yellow-800 mb-1">⚡ Wolf-rotation</p>
+              <p className="text-xs text-yellow-700">{players.map((p, i) => `Hål ${i + 1}+: ${p.name.split(" ")[0]}`).join(" · ")}</p>
+              <p className="text-xs text-yellow-600 mt-1 opacity-75">Ordningen följer spelarordningen ovan</p>
+            </div>
+          )}
 
           {/* Scramble HCP summary */}
           {format === "scramble" && (["red", "blue"] as const).some((t) => players.some((p) => p.team === t)) && (
