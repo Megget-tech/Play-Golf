@@ -10,7 +10,7 @@ const FORMATS = [
   { value: "wolf", label: "Wolf", desc: "Roterande wolf väljer partner per hål" },
   { value: "scramble", label: "Scramble", desc: "Laget spelar från bästa bollen" },
   { value: "matchplay", label: "Match / Ryder Cup", desc: "Rött vs Blått lag, poängbaserat" },
-  { value: "kopenhamnare", label: "Köpenhamnare", desc: "Lag – kombinerat netto per hål" },
+  { value: "kopenhamnare", label: "Köpenhamnare", desc: "3 spelare, 4-2-0 poäng per hål" },
 ];
 
 const TEE_COLORS: Record<string, string> = {
@@ -313,17 +313,17 @@ function NewRoundInner() {
                   </div>
                 )}
 
-                {(format === "matchplay" || format === "scramble" || format === "kopenhamnare") && (
+                {(format === "matchplay" || format === "scramble") && (
                   <div>
                     <p className="text-xs text-gray-500 mb-1.5">{format === "matchplay" ? "Lag" : "Scramble-lag"}</p>
                     <div className="flex gap-2">
                       <button onClick={() => setTeam(p.id, "red")}
                         className={`flex-1 rounded-lg py-1.5 text-xs font-bold transition-colors ${p.team === "red" ? "bg-red-600 text-white" : "bg-red-50 text-red-600"}`}>
-                        {format === "matchplay" ? "RÖTT" : format === "kopenhamnare" ? "LAG RÖTT" : "LAG A"}
+                        {format === "matchplay" ? "RÖTT" : "LAG A"}
                       </button>
                       <button onClick={() => setTeam(p.id, "blue")}
                         className={`flex-1 rounded-lg py-1.5 text-xs font-bold transition-colors ${p.team === "blue" ? "bg-blue-600 text-white" : "bg-blue-50 text-blue-600"}`}>
-                        {format === "matchplay" ? "BLÅTT" : format === "kopenhamnare" ? "LAG BLÅTT" : "LAG B"}
+                        {format === "matchplay" ? "BLÅTT" : "LAG B"}
                       </button>
                     </div>
                   </div>

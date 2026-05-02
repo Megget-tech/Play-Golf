@@ -320,24 +320,31 @@ export default function ScorecardPage() {
     return pts;
   }
 
-  // ── Köpenhamnare hole results ─────────────────────────────────────────────
-  function kopenhamnareResults(redPs: Player[], bluePs: Player[]): ("red" | "blue" | "halved" | null)[] {
-    return holes.map((h) => {
-      const teamNet = (tp: Player[]) => {
-        let sum = 0;
-        for (const p of tp) {
-          const g = scores[h.id]?.[p.user_id];
-          if (!g) return null;
-          sum += g - strokesOnHole(courseHcp(p.handicap_index), h.stroke_index);
-        }
-        return sum;
-      };
-      const r = teamNet(redPs), b = teamNet(bluePs);
-      if (r === null || b === null) return null;
-      if (r < b) return "red";
-      if (b < r) return "blue";
-      return "halved";
+  // ── Köpenhamnare (3-man, 4-2-0 per hole) ─────────────────────────────────
+  function kopenhamnareHolePts(h: Hole): Record<string, number> {
+    const pts: Record<string, number> = {};
+    players.forEach((p) => { pts[p.user_id] = 0; });
+    const nets = players.map((p) => {
+      const g = scores[h.id]?.[p.user_id];
+      if (!g) return null;
+      return { uid: p.user_id, net: g - strokesOnHole(courseHcp(p.handicap_index), h.stroke_index) };
     });
+    if (nets.some((n) => n === null)) return pts; // not all scored
+    const sorted = (nets as { uid: string; net: number }[]).sort((a, b) => a.net - b.net);
+    const allPts = players.length === 2 ? [4, 0] : players.length === 3 ? [4, 2, 0] : players.length === 4 ? [4, 3, 2, 0] : [4, 3, 2, 1, 0].slice(0, players.length);
+    let i = 0;
+    while (i < sorted.length) {
+      let j = i;
+      while (j < sorted.length && sorted[j].net === sorted[i].net) j++;
+      const share = allPts.slice(i, j).reduce((s, v) => s + v, 0) / (j - i);
+      for (let k = i; k < j; k++) pts[sorted[k].uid] = share;
+      i = j;
+    }
+    return pts;
+  }
+
+  function kopenhamnareTotal(uid: string): number {
+    return holes.reduce((sum, h) => sum + (kopenhamnareHolePts(h)[uid] ?? 0), 0);
   }
 
   async function abortRound() {
@@ -884,95 +891,73 @@ export default function ScorecardPage() {
             );
           })()}
 
-          {/* Köpenhamnare summary */}
-          {format === "kopenhamnare" && (() => {
-            const redPs = players.filter((p) => p.team === "red");
-            const bluePs = players.filter((p) => p.team === "blue");
-            const holeResults = kopenhamnareResults(redPs, bluePs);
-            let redUp = 0;
-            const running: number[] = [];
-            for (const hr of holeResults) { if (hr === "red") redUp++; else if (hr === "blue") redUp--; running.push(redUp); }
-            const played = holeResults.filter((r) => r !== null).length;
-            const redWins = holeResults.filter((r) => r === "red").length;
-            const blueWins = holeResults.filter((r) => r === "blue").length;
-            const halveds = holeResults.filter((r) => r === "halved").length;
-            const left = holes.length - played;
-            let label: string, bannerCls: string;
-            if (redUp > 0) { label = redUp > left ? `Rött vann ${redUp}&${left}` : `Rött leder ${redUp} up${left > 0 ? ` · ${left} kvar` : ""}`; bannerCls = "bg-red-600"; }
-            else if (redUp < 0) { const bu = -redUp; label = bu > left ? `Blått vann ${bu}&${left}` : `Blått leder ${bu} up${left > 0 ? ` · ${left} kvar` : ""}`; bannerCls = "bg-blue-600"; }
-            else { label = played === 0 ? "Inga hål spelade" : left > 0 ? `All square · ${left} kvar` : "All square"; bannerCls = "bg-gray-500"; }
-
-            const teamNetSum = (tp: Player[], h: Hole) => {
-              let sum = 0;
-              for (const p of tp) { const g = scores[h.id]?.[p.user_id]; if (!g) return null; sum += g - strokesOnHole(courseHcp(p.handicap_index), h.stroke_index); }
-              return sum;
-            };
-
-            return (
-              <section className="px-2 space-y-4">
-                <div className={`${bannerCls} text-white rounded-2xl px-4 py-5 text-center`}>
-                  <p className="text-2xl font-bold">{label}</p>
-                  <p className="text-sm opacity-80 mt-1">Rött {redWins} – {halveds} – {blueWins} Blått · Kombinerat netto</p>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="min-w-full text-xs bg-white rounded-2xl shadow overflow-hidden">
-                    <thead>
-                      <tr className="bg-green-800 text-white">
-                        <th className="px-2 py-2 text-left sticky left-0 bg-green-800">Hål</th>
-                        <th className="px-2 py-2">Par</th>
-                        {redPs.map((p) => <th key={p.user_id} className="px-2 py-2 text-red-300 min-w-12">{p.name.split(" ")[0]}</th>)}
-                        <th className="px-2 py-2 text-red-200">Sum R</th>
-                        <th className="px-2 py-2">Res</th>
-                        <th className="px-2 py-2 text-blue-200">Sum B</th>
-                        {bluePs.map((p) => <th key={p.user_id} className="px-2 py-2 text-blue-300 min-w-12">{p.name.split(" ")[0]}</th>)}
-                        <th className="px-2 py-2">Match</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {holes.map((h, i) => {
-                        const result = holeResults[i];
-                        const sc = running[i];
-                        const rowBg = result === "red" ? "bg-red-50" : result === "blue" ? "bg-blue-50" : i % 2 === 0 ? "bg-white" : "bg-green-50";
-                        const matchTxt = result === null ? "" : sc === 0 ? "=" : sc > 0 ? `R${sc}up` : `B${-sc}up`;
-                        const matchCls = sc > 0 ? "text-red-600" : sc < 0 ? "text-blue-600" : "text-gray-400";
-                        const rSum = teamNetSum(redPs, h);
-                        const bSum = teamNetSum(bluePs, h);
-                        return (
-                          <tr key={h.id}>
-                            <td className={`px-2 py-1.5 font-semibold text-gray-700 sticky left-0 ${rowBg}`}>{h.hole_number}</td>
-                            <td className={`px-2 py-1.5 text-center text-gray-500 ${rowBg}`}>{h.par}</td>
-                            {redPs.map((p) => {
-                              const g = scores[h.id]?.[p.user_id];
-                              return <td key={p.user_id} className={`px-2 py-1.5 text-center ${rowBg}`}>{g ? <ScoreSymbol strokes={g} par={h.par} /> : <span className="text-gray-300">—</span>}</td>;
-                            })}
-                            <td className={`px-2 py-1.5 text-center font-semibold text-red-700 ${rowBg}`}>{rSum ?? "—"}</td>
-                            <td className={`px-2 py-1.5 text-center font-bold ${rowBg} ${result === "red" ? "text-red-600" : result === "blue" ? "text-blue-600" : "text-gray-400"}`}>
-                              {result === "red" ? "R" : result === "blue" ? "B" : result === "halved" ? "=" : ""}
-                            </td>
-                            <td className={`px-2 py-1.5 text-center font-semibold text-blue-700 ${rowBg}`}>{bSum ?? "—"}</td>
-                            {bluePs.map((p) => {
-                              const g = scores[h.id]?.[p.user_id];
-                              return <td key={p.user_id} className={`px-2 py-1.5 text-center ${rowBg}`}>{g ? <ScoreSymbol strokes={g} par={h.par} /> : <span className="text-gray-300">—</span>}</td>;
-                            })}
-                            <td className={`px-2 py-1.5 text-center font-semibold text-xs ${rowBg} ${matchCls}`}>{matchTxt}</td>
-                          </tr>
-                        );
-                      })}
-                      <tr className="bg-green-900 text-white font-bold">
-                        <td className="px-2 py-2 sticky left-0 bg-green-900" colSpan={2}>Tot</td>
-                        {redPs.map((p) => { const { total } = totalScore(p.user_id); return <td key={p.user_id} className="px-2 py-2 text-center">{total || "—"}</td>; })}
-                        <td className="px-2 py-2 text-center text-red-300">{redWins}W</td>
-                        <td className="px-2 py-2 text-center text-xs"><div className="text-gray-400">{halveds}=</div></td>
-                        <td className="px-2 py-2 text-center text-blue-300">{blueWins}W</td>
-                        {bluePs.map((p) => { const { total } = totalScore(p.user_id); return <td key={p.user_id} className="px-2 py-2 text-center">{total || "—"}</td>; })}
-                        <td className="px-2 py-2" />
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </section>
-            );
-          })()}
+          {/* Köpenhamnare summary (3-man, 4-2-0 per hole) */}
+          {format === "kopenhamnare" && (
+            <section className="px-2">
+              <h2 className="text-xs font-semibold text-gray-500 uppercase mb-2">Köpenhamnare – 4-2-0 per hål</h2>
+              <div className="space-y-2 mb-4">
+                {[...players].sort((a, b) => kopenhamnareTotal(b.user_id) - kopenhamnareTotal(a.user_id)).map((p, i) => {
+                  const tot = kopenhamnareTotal(p.user_id);
+                  const maxPts = holes.length * 4;
+                  return (
+                    <div key={p.user_id} className="bg-white rounded-2xl shadow-md px-4 py-3 flex items-center gap-3">
+                      <span className="text-sm font-bold text-gray-400 w-5">{i + 1}</span>
+                      <div className="flex-1">
+                        <p className="font-semibold text-gray-800 text-sm">{p.name}</p>
+                        <p className="text-xs text-gray-400">HCP {courseHcp(p.handicap_index)}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-2xl font-bold text-purple-700">{tot}</p>
+                        <p className="text-xs text-gray-400">av {maxPts}p</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-xs bg-white rounded-2xl shadow overflow-hidden">
+                  <thead>
+                    <tr className="bg-green-800 text-white">
+                      <th className="px-3 py-2 text-left sticky left-0 bg-green-800">Hål</th>
+                      <th className="px-2 py-2">Par</th>
+                      <th className="px-2 py-2">SI</th>
+                      {players.map((p) => <th key={p.user_id} className="px-2 py-2 min-w-16 text-center">{p.name.split(" ")[0]}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {holes.map((h, i) => {
+                      const holePts = kopenhamnareHolePts(h);
+                      const maxHolePts = Math.max(...players.map((p) => holePts[p.user_id] ?? 0));
+                      return (
+                        <tr key={h.id} className={i % 2 === 0 ? "bg-white" : "bg-green-50"}>
+                          <td className="px-3 py-2 font-semibold text-gray-700 sticky left-0 bg-inherit">{h.hole_number}</td>
+                          <td className="px-2 py-2 text-center text-gray-500">{h.par}</td>
+                          <td className="px-2 py-2 text-center text-gray-400">{h.stroke_index ?? "—"}</td>
+                          {players.map((p) => {
+                            const g = scores[h.id]?.[p.user_id];
+                            const pts = holePts[p.user_id] ?? 0;
+                            if (!g) return <td key={p.user_id} className="px-2 py-2 text-center text-gray-300">—</td>;
+                            return (
+                              <td key={p.user_id} className="px-2 py-1.5 text-center">
+                                <ScoreSymbol strokes={g} par={h.par} />
+                                <div className={`text-xs font-bold mt-0.5 ${pts === maxHolePts && maxHolePts > 0 ? "text-purple-700" : "text-gray-400"}`}>{pts}p</div>
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                    <tr className="bg-green-900 text-white font-bold">
+                      <td className="px-3 py-2 sticky left-0 bg-green-900" colSpan={3}>Tot</td>
+                      {players.map((p) => (
+                        <td key={p.user_id} className="px-2 py-2 text-center text-purple-300">{kopenhamnareTotal(p.user_id)}p</td>
+                      ))}
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
 
           <div className="px-2 space-y-2">
             <button onClick={() => setCurrentHole(holes.length - 1)} className="w-full bg-white text-green-700 border border-green-300 rounded-2xl py-3 font-semibold text-sm">
@@ -1125,8 +1110,8 @@ export default function ScorecardPage() {
           );
         })()}
 
-        {/* Stroke / Poångbogey / Skins / Wolf: one card per player */}
-        {(format === "stroke" || format === "poangbogey" || format === "skins" || format === "wolf") && players.map((p) => {
+        {/* Stroke / Poångbogey / Skins / Wolf / Köpenhamnare: one card per player */}
+        {(format === "stroke" || format === "poangbogey" || format === "skins" || format === "wolf" || format === "kopenhamnare") && players.map((p) => {
           const val = scores[hole.id]?.[p.user_id] ?? 0;
           const { total, diff } = totalScore(p.user_id);
           const badge = val > 0 ? scoreBadge(val, hole.par) : null;
@@ -1135,6 +1120,8 @@ export default function ScorecardPage() {
           const stablePts = format === "stroke" && val > 0 ? stablefordPoints(val, hole.par, extra) : null;
           const totalSt = format === "stroke" ? totalStableford(p.user_id) : 0;
           const mvp = format === "poangbogey" ? matchVsParTotal(p.user_id) : null;
+          const holeKopenPts = format === "kopenhamnare" ? kopenhamnareHolePts(hole)[p.user_id] : null;
+          const totalKopenPts = format === "kopenhamnare" ? kopenhamnareTotal(p.user_id) : 0;
           return (
             <div key={p.user_id} className="bg-white rounded-2xl shadow-md px-4 py-4">
               <div className="flex items-start justify-between mb-3">
@@ -1162,11 +1149,13 @@ export default function ScorecardPage() {
                   <div className="flex items-center gap-1.5">
                     {badge && <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${badge.cls}`}>{badge.label}</span>}
                     {stablePts !== null && <span className="text-xs font-bold bg-green-100 text-green-700 px-2 py-0.5 rounded-full">{stablePts}p</span>}
+                    {holeKopenPts !== null && holeKopenPts > 0 && <span className="text-xs font-bold bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">{holeKopenPts}p</span>}
                   </div>
                   {format === "stroke" && <p className="text-xs text-gray-400">{total > 0 ? `${diff > 0 ? "+" : ""}${diff === 0 ? "par" : diff}` : "—"} · {totalSt}p tot</p>}
                   {format === "poangbogey" && <p className={`text-xs font-semibold ${mvp! > 0 ? "text-green-600" : mvp! < 0 ? "text-red-500" : "text-gray-400"}`}>{mvp! > 0 ? `+${mvp} up` : mvp! < 0 ? `${mvp} dn` : "all sq"}</p>}
                   {format === "skins" && <p className="text-xs text-gray-400">{total > 0 ? `${diff > 0 ? "+" : ""}${diff === 0 ? "par" : diff}` : "—"}</p>}
                   {format === "wolf" && <p className="text-xs text-gray-400">{total > 0 ? `${diff > 0 ? "+" : ""}${diff === 0 ? "par" : diff}` : "—"}</p>}
+                  {format === "kopenhamnare" && <p className="text-xs text-purple-700 font-semibold">{totalKopenPts}p tot</p>}
                 </div>
               </div>
               <div className="flex items-center gap-4">
@@ -1178,8 +1167,8 @@ export default function ScorecardPage() {
           );
         })}
 
-        {/* Matchplay / Köpenhamnare: compact side-by-side layout */}
-        {(format === "matchplay" || format === "kopenhamnare") && (() => {
+        {/* Matchplay: compact side-by-side layout */}
+        {format === "matchplay" && (() => {
           const redPs = players.filter((p) => p.team === "red");
           const bluePs = players.filter((p) => p.team === "blue");
 
@@ -1187,28 +1176,14 @@ export default function ScorecardPage() {
           let liveRedUp = 0;
           for (let i = 0; i < currentHole; i++) {
             const h = holes[i];
-            if (format === "matchplay") {
-              const bestNet = (tp: Player[]) => Math.min(...tp.map((p) => {
-                const g = scores[h.id]?.[p.user_id];
-                return g ? g - strokesOnHole(courseHcp(p.handicap_index), h.stroke_index) : Infinity;
-              }));
-              const r = bestNet(redPs), b = bestNet(bluePs);
-              if (isFinite(r) || isFinite(b)) {
-                if (r < b) liveRedUp++;
-                else if (b < r) liveRedUp--;
-              }
-            } else {
-              // köpenhamnare: combined net
-              const teamNet = (tp: Player[]) => {
-                let sum = 0;
-                for (const p of tp) { const g = scores[h.id]?.[p.user_id]; if (!g) return null; sum += g - strokesOnHole(courseHcp(p.handicap_index), h.stroke_index); }
-                return sum;
-              };
-              const r = teamNet(redPs), b = teamNet(bluePs);
-              if (r !== null && b !== null) {
-                if (r < b) liveRedUp++;
-                else if (b < r) liveRedUp--;
-              }
+            const bestNet = (tp: Player[]) => Math.min(...tp.map((p) => {
+              const g = scores[h.id]?.[p.user_id];
+              return g ? g - strokesOnHole(courseHcp(p.handicap_index), h.stroke_index) : Infinity;
+            }));
+            const r = bestNet(redPs), b = bestNet(bluePs);
+            if (isFinite(r) || isFinite(b)) {
+              if (r < b) liveRedUp++;
+              else if (b < r) liveRedUp--;
             }
           }
           const holesLeft = holes.length - currentHole - 1;
