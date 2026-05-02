@@ -123,9 +123,13 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-green-50">
-      <header className="bg-green-800 text-white px-4 py-5">
+      <header className="bg-green-800 text-white px-4 py-4">
+        <div className="flex items-center justify-between mb-2">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/golfo-logo.png" alt="Golfo" className="h-10 w-auto" />
+        </div>
         <p className="text-sm opacity-75">Välkommen tillbaka,</p>
-        <h1 className="text-2xl font-bold">{name || "Golfaren"} ⛳</h1>
+        <h1 className="text-2xl font-bold">{name || "Golfaren"}</h1>
       </header>
 
       <main className="px-4 py-5 max-w-lg mx-auto space-y-6">

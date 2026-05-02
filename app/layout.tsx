@@ -13,13 +13,13 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Play Golf",
+  title: "Golfo",
   description: "Registrera runder, tävla med kompisar",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Play Golf",
+    title: "Golfo",
   },
 };
 
