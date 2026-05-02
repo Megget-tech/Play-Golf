@@ -305,8 +305,8 @@ export default function ScorecardPage() {
             </section>
           )}
 
-          {/* Stroke / matchplay summary */}
-          {format !== "scramble" && (
+          {/* Stroke play summary */}
+          {format === "stroke" && (
             <section className="px-2">
               <h2 className="text-xs font-semibold text-gray-500 uppercase mb-2">Slutresultat</h2>
               <div className="space-y-2">
@@ -338,9 +338,7 @@ export default function ScorecardPage() {
                       <th className="px-2 py-2">Par</th>
                       <th className="px-2 py-2">SI</th>
                       {players.map((p) => (
-                        <th key={p.user_id} className="px-2 py-2 min-w-16 text-center">
-                          {p.name.split(" ")[0]}
-                        </th>
+                        <th key={p.user_id} className="px-2 py-2 min-w-16 text-center">{p.name.split(" ")[0]}</th>
                       ))}
                     </tr>
                   </thead>
@@ -352,12 +350,10 @@ export default function ScorecardPage() {
                         <td className="px-2 py-2 text-center text-gray-400">{h.stroke_index ?? "—"}</td>
                         {players.map((p) => {
                           const s = scores[h.id]?.[p.user_id];
-                          const hcp = courseHcp(p.handicap_index);
-                          const extra = strokesOnHole(hcp, h.stroke_index);
+                          const extra = strokesOnHole(courseHcp(p.handicap_index), h.stroke_index);
                           if (s === undefined) return (
                             <td key={p.user_id} className="px-2 py-1.5 text-center text-gray-300">
-                              {extra > 0 && <div className="text-yellow-400 text-xs mb-0.5">+{extra}</div>}
-                              —
+                              {extra > 0 && <div className="text-yellow-400 text-xs mb-0.5">+{extra}</div>}—
                             </td>
                           );
                           const { cls } = scoreBadge(s, h.par);
@@ -393,6 +389,172 @@ export default function ScorecardPage() {
               </div>
             </section>
           )}
+
+          {/* Matchplay summary */}
+          {format === "matchplay" && (() => {
+            const redPs = players.filter((p) => p.team === "red");
+            const bluePs = players.filter((p) => p.team === "blue");
+
+            type HR = "red" | "blue" | "halved" | null;
+            const holeResults: HR[] = holes.map((h) => {
+              const bestNet = (tp: Player[]) => Math.min(...tp.map((p) => {
+                const g = scores[h.id]?.[p.user_id];
+                if (!g) return Infinity;
+                return g - strokesOnHole(courseHcp(p.handicap_index), h.stroke_index);
+              }));
+              const r = bestNet(redPs), b = bestNet(bluePs);
+              if (!isFinite(r) && !isFinite(b)) return null;
+              if (r < b) return "red";
+              if (b < r) return "blue";
+              return "halved";
+            });
+
+            let redUp = 0;
+            const running: number[] = [];
+            for (const hr of holeResults) {
+              if (hr === "red") redUp++;
+              else if (hr === "blue") redUp--;
+              running.push(redUp);
+            }
+
+            const played = holeResults.filter((r) => r !== null).length;
+            const redWins = holeResults.filter((r) => r === "red").length;
+            const blueWins = holeResults.filter((r) => r === "blue").length;
+            const halveds = holeResults.filter((r) => r === "halved").length;
+            const left = holes.length - played;
+
+            let label: string, bannerCls: string;
+            if (redUp > 0) {
+              label = redUp > left ? `Rött vann ${redUp}&${left}` : `Rött leder ${redUp} up${left > 0 ? ` · ${left} kvar` : ""}`;
+              bannerCls = "bg-red-600";
+            } else if (redUp < 0) {
+              const bu = -redUp;
+              label = bu > left ? `Blått vann ${bu}&${left}` : `Blått leder ${bu} up${left > 0 ? ` · ${left} kvar` : ""}`;
+              bannerCls = "bg-blue-600";
+            } else {
+              label = played === 0 ? "Inga hål spelade" : left > 0 ? `All square · ${left} kvar` : "All square";
+              bannerCls = "bg-gray-500";
+            }
+
+            const playerCell = (p: Player, h: (typeof holes)[0], rowBg: string) => {
+              const gross = scores[h.id]?.[p.user_id];
+              const extra = strokesOnHole(courseHcp(p.handicap_index), h.stroke_index);
+              if (!gross) return (
+                <td key={p.user_id} className={`px-2 py-1.5 text-center text-gray-300 ${rowBg}`}>
+                  {extra > 0 && <div className="text-yellow-500 text-xs">+{extra}</div>}—
+                </td>
+              );
+              const { cls } = scoreBadge(gross, h.par);
+              return (
+                <td key={p.user_id} className={`px-2 py-1.5 text-center ${rowBg}`}>
+                  {extra > 0 && <div className="text-yellow-600 text-xs font-semibold">+{extra}</div>}
+                  <span className={`inline-flex w-7 h-7 rounded-full items-center justify-center font-bold ${cls}`}>{gross}</span>
+                  <div className="text-xs mt-0.5 text-gray-400">{gross - extra}</div>
+                </td>
+              );
+            };
+
+            return (
+              <section className="px-2 space-y-4">
+                {/* Result banner */}
+                <div className={`${bannerCls} text-white rounded-2xl px-4 py-5 text-center`}>
+                  <p className="text-2xl font-bold">{label}</p>
+                  <p className="text-sm opacity-80 mt-1">Rött {redWins} – {halveds} – {blueWins} Blått</p>
+                </div>
+
+                {/* Hole timeline */}
+                <div className="bg-white rounded-2xl shadow px-4 py-3">
+                  <p className="text-xs font-semibold text-gray-500 uppercase mb-3">Hål för hål</p>
+                  <div className="flex flex-wrap gap-x-2 gap-y-3">
+                    {holes.map((h, i) => {
+                      const r = holeResults[i];
+                      const sc = running[i];
+                      const circleCls = r === "red" ? "bg-red-500 text-white" : r === "blue" ? "bg-blue-500 text-white" : r === "halved" ? "bg-gray-300 text-gray-700" : "bg-gray-100 text-gray-400";
+                      const scoreTxt = sc === 0 ? "=" : sc > 0 ? `R${sc}` : `B${-sc}`;
+                      const scoreCls = sc > 0 ? "text-red-600" : sc < 0 ? "text-blue-600" : "text-gray-400";
+                      return (
+                        <div key={h.id} className="flex flex-col items-center w-7">
+                          <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${circleCls}`}>{h.hole_number}</span>
+                          <span className={`text-xs mt-0.5 font-semibold ${scoreCls}`}>{r !== null ? scoreTxt : ""}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="flex items-center gap-4 mt-3 text-xs text-gray-500">
+                    <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-red-500 inline-block" /> Rött</span>
+                    <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-gray-300 inline-block" /> Delat</span>
+                    <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-blue-500 inline-block" /> Blått</span>
+                  </div>
+                </div>
+
+                {/* Per-hole table */}
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-xs bg-white rounded-2xl shadow overflow-hidden">
+                    <thead>
+                      <tr className="bg-green-800 text-white">
+                        <th className="px-2 py-2 text-left sticky left-0 bg-green-800">Hål</th>
+                        <th className="px-2 py-2">Par</th>
+                        <th className="px-2 py-2">SI</th>
+                        {redPs.map((p) => <th key={p.user_id} className="px-2 py-2 text-red-300 min-w-12">{p.name.split(" ")[0]}</th>)}
+                        <th className="px-2 py-2">Res</th>
+                        {bluePs.map((p) => <th key={p.user_id} className="px-2 py-2 text-blue-300 min-w-12">{p.name.split(" ")[0]}</th>)}
+                        <th className="px-2 py-2">Match</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {holes.map((h, i) => {
+                        const result = holeResults[i];
+                        const sc = running[i];
+                        const rowBg = result === "red" ? "bg-red-50" : result === "blue" ? "bg-blue-50" : i % 2 === 0 ? "bg-white" : "bg-green-50";
+                        const matchTxt = result === null ? "" : sc === 0 ? "=" : sc > 0 ? `R${sc}up` : `B${-sc}up`;
+                        const matchCls = sc > 0 ? "text-red-600" : sc < 0 ? "text-blue-600" : "text-gray-400";
+                        return (
+                          <tr key={h.id}>
+                            <td className={`px-2 py-1.5 font-semibold text-gray-700 sticky left-0 ${rowBg}`}>{h.hole_number}</td>
+                            <td className={`px-2 py-1.5 text-center text-gray-500 ${rowBg}`}>{h.par}</td>
+                            <td className={`px-2 py-1.5 text-center text-gray-400 ${rowBg}`}>{h.stroke_index ?? "—"}</td>
+                            {redPs.map((p) => playerCell(p, h, rowBg))}
+                            <td className={`px-2 py-1.5 text-center font-bold ${rowBg} ${result === "red" ? "text-red-600" : result === "blue" ? "text-blue-600" : "text-gray-400"}`}>
+                              {result === "red" ? "R" : result === "blue" ? "B" : result === "halved" ? "=" : ""}
+                            </td>
+                            {bluePs.map((p) => playerCell(p, h, rowBg))}
+                            <td className={`px-2 py-1.5 text-center font-semibold text-xs ${rowBg} ${matchCls}`}>{matchTxt}</td>
+                          </tr>
+                        );
+                      })}
+                      <tr className="bg-green-900 text-white font-bold">
+                        <td className="px-2 py-2 sticky left-0 bg-green-900" colSpan={3}>Tot</td>
+                        {redPs.map((p) => {
+                          const { total, diff } = totalScore(p.user_id);
+                          return (
+                            <td key={p.user_id} className="px-2 py-2 text-center">
+                              <div>{total || "—"}</div>
+                              {total > 0 && <div className={`text-xs font-normal ${diff > 0 ? "text-red-300" : "text-green-300"}`}>{diff > 0 ? `+${diff}` : diff}</div>}
+                            </td>
+                          );
+                        })}
+                        <td className="px-2 py-2 text-center text-xs">
+                          <div className="text-red-300">{redWins}W</div>
+                          <div className="text-gray-400">{halveds}=</div>
+                          <div className="text-blue-300">{blueWins}W</div>
+                        </td>
+                        {bluePs.map((p) => {
+                          const { total, diff } = totalScore(p.user_id);
+                          return (
+                            <td key={p.user_id} className="px-2 py-2 text-center">
+                              <div>{total || "—"}</div>
+                              {total > 0 && <div className={`text-xs font-normal ${diff > 0 ? "text-red-300" : "text-green-300"}`}>{diff > 0 ? `+${diff}` : diff}</div>}
+                            </td>
+                          );
+                        })}
+                        <td className="px-2 py-2" />
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            );
+          })()}
 
           <div className="px-2 space-y-2">
             <button onClick={() => setCurrentHole(holes.length - 1)} className="w-full bg-white text-green-700 border border-green-300 rounded-2xl py-3 font-semibold text-sm">
