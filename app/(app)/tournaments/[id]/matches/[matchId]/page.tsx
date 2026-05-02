@@ -133,7 +133,7 @@ export default function MatchPage() {
   const statusColor = status.redUp > 0 ? "text-red-600" : status.redUp < 0 ? "text-blue-600" : "text-gray-600";
 
   return (
-    <div className="min-h-screen bg-green-50 flex flex-col">
+    <div className="min-h-screen bg-green-100 flex flex-col">
       <header className="bg-green-800 text-white px-4 py-4">
         <button onClick={() => router.back()} className="text-sm opacity-75 mb-1">← Tillbaka</button>
         <div className="flex items-center gap-3 mt-1">

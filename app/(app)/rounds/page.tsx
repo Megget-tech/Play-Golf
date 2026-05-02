@@ -79,7 +79,7 @@ export default function RoundsPage() {
   if (loading) return <div className="min-h-screen flex items-center justify-center text-gray-400">Laddar...</div>;
 
   return (
-    <div className="min-h-screen bg-green-50 pb-8">
+    <div className="min-h-screen bg-green-100 pb-8">
       <header className="bg-green-800 text-white px-4 py-4">
         <button onClick={() => router.back()} className="text-sm opacity-75 mb-1">← Tillbaka</button>
         <h1 className="text-lg font-bold">Alla rundor</h1>
@@ -92,7 +92,7 @@ export default function RoundsPage() {
           <h2 className="text-xs font-semibold text-gray-500 uppercase mb-2">Statistik</h2>
 
           {/* HCP card */}
-          <div className="bg-green-700 text-white rounded-2xl shadow px-5 py-4 mb-3 flex items-center justify-between">
+          <div className="bg-green-700 text-white rounded-2xl shadow-md px-5 py-4 mb-3 flex items-center justify-between">
             <div>
               <p className="text-xs opacity-75 mb-0.5">Aktuellt handicap</p>
               <p className="text-4xl font-bold">{hcp ?? "—"}</p>
@@ -114,15 +114,15 @@ export default function RoundsPage() {
 
           {/* Small stat cards */}
           <div className="grid grid-cols-3 gap-2">
-            <div className="bg-white rounded-2xl shadow px-3 py-4 text-center">
+            <div className="bg-white rounded-2xl shadow-md px-3 py-4 text-center">
               <p className="text-2xl font-bold text-gray-800">{roundsThisSummer}</p>
               <p className="text-xs text-gray-500 mt-1 leading-tight">Rundor<br/>i sommar</p>
             </div>
-            <div className="bg-white rounded-2xl shadow px-3 py-4 text-center">
+            <div className="bg-white rounded-2xl shadow-md px-3 py-4 text-center">
               <p className="text-2xl font-bold text-gray-800">{roundsThisSeason}</p>
               <p className="text-xs text-gray-500 mt-1 leading-tight">Denna<br/>säsong</p>
             </div>
-            <div className="bg-white rounded-2xl shadow px-3 py-4 text-center">
+            <div className="bg-white rounded-2xl shadow-md px-3 py-4 text-center">
               <p className="text-2xl font-bold text-gray-800">{rounds.length}</p>
               <p className="text-xs text-gray-500 mt-1 leading-tight">Totalt<br/>spelade</p>
             </div>
@@ -147,7 +147,7 @@ export default function RoundsPage() {
                     <li key={r.id}>
                       <Link
                         href={`/rounds/${r.id}`}
-                        className="flex items-center justify-between bg-white rounded-2xl shadow px-4 py-3 hover:shadow-md transition-shadow"
+                        className="flex items-center justify-between bg-white rounded-2xl shadow-md px-4 py-3 hover:shadow-md transition-shadow"
                       >
                         <div>
                           <p className="font-semibold text-sm text-gray-800">{r.courses?.name ?? "Okänd bana"}</p>

@@ -227,7 +227,7 @@ export default function ScorecardPage() {
   // ── Summary view ──────────────────────────────────────────────────────────
   if (currentHole >= holes.length) {
     return (
-      <div className="min-h-screen bg-green-50 pb-8">
+      <div className="min-h-screen bg-green-100 pb-8">
         <header className="bg-green-800 text-white px-4 py-4">
           <h1 className="text-lg font-bold">Runda klar!</h1>
           <p className="text-sm opacity-75">{courseName}</p>
@@ -243,7 +243,7 @@ export default function ScorecardPage() {
                   const { total, diff } = teamTotalScore(team.players);
                   const hcp = calcScrambleHcp(team.players);
                   return (
-                    <div key={team.key} className="bg-white rounded-2xl shadow px-4 py-3 flex items-center gap-3">
+                    <div key={team.key} className="bg-white rounded-2xl shadow-md px-4 py-3 flex items-center gap-3">
                       <span className="text-sm font-bold text-gray-400 w-5">{i + 1}</span>
                       <div className="flex-1">
                         <p className="font-semibold text-gray-800">{team.label}</p>
@@ -314,7 +314,7 @@ export default function ScorecardPage() {
                   const { total, diff } = totalScore(p.user_id);
                   const totalSt = totalStableford(p.user_id);
                   return (
-                    <div key={p.user_id} className="bg-white rounded-2xl shadow px-4 py-3 flex items-center gap-3">
+                    <div key={p.user_id} className="bg-white rounded-2xl shadow-md px-4 py-3 flex items-center gap-3">
                       <span className="text-sm font-bold text-gray-400 w-5">{i + 1}</span>
                       <div className="flex-1">
                         <p className="font-semibold text-gray-800 text-sm">{p.name}</p>
@@ -463,7 +463,7 @@ export default function ScorecardPage() {
                 </div>
 
                 {/* Hole timeline */}
-                <div className="bg-white rounded-2xl shadow px-4 py-3">
+                <div className="bg-white rounded-2xl shadow-md px-4 py-3">
                   <p className="text-xs font-semibold text-gray-500 uppercase mb-3">Hål för hål</p>
                   <div className="flex flex-wrap gap-x-2 gap-y-3">
                     {holes.map((h, i) => {
@@ -571,7 +571,7 @@ export default function ScorecardPage() {
 
   // ── Active scorecard ──────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-green-50">
+    <div className="min-h-screen bg-green-100">
       <header className="bg-green-800 text-white px-4 py-3 flex items-center justify-between">
         <div>
           <p className="text-xs opacity-75">{courseName}</p>
@@ -608,7 +608,7 @@ export default function ScorecardPage() {
           const hcp = calcScrambleHcp(team.players);
           const size = team.players.length;
           return (
-            <div key={team.key} className="bg-white rounded-2xl shadow px-4 py-4">
+            <div key={team.key} className="bg-white rounded-2xl shadow-md px-4 py-4">
               <div className="flex items-center justify-between mb-1">
                 <div>
                   <p className="font-semibold text-gray-800">
@@ -635,8 +635,8 @@ export default function ScorecardPage() {
           );
         })}
 
-        {/* Stroke / matchplay: one card per player */}
-        {format !== "scramble" && players.map((p) => {
+        {/* Stroke: one card per player */}
+        {format === "stroke" && players.map((p) => {
           const val = scores[hole.id]?.[p.user_id] ?? 0;
           const { total, diff } = totalScore(p.user_id);
           const badge = val > 0 ? scoreBadge(val, hole.par) : null;
@@ -645,32 +645,20 @@ export default function ScorecardPage() {
           const stablePts = val > 0 ? stablefordPoints(val, hole.par, extra) : null;
           const totalSt = totalStableford(p.user_id);
           return (
-            <div key={p.user_id} className="bg-white rounded-2xl shadow px-4 py-4">
+            <div key={p.user_id} className="bg-white rounded-2xl shadow-md px-4 py-4">
               <div className="flex items-start justify-between mb-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <p className="font-semibold text-gray-800 truncate">{p.name}</p>
-                    {extra > 0 && (
-                      <span className="shrink-0 text-xs bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-full font-bold">+{extra}</span>
-                    )}
+                    {extra > 0 && <span className="shrink-0 text-xs bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-full font-bold">+{extra}</span>}
                   </div>
                   <div className="flex items-center gap-2 mt-0.5">
                     <span className="text-xs text-gray-400">HCP {hcp}</span>
                     {p.tee_name && (
                       <span className="flex items-center gap-1 text-xs text-gray-400">
-                        · <span className={`w-2 h-2 rounded-full inline-block ${
-                          p.tee_color === "red" ? "bg-red-500" :
-                          p.tee_color === "yellow" ? "bg-yellow-400" :
-                          p.tee_color === "blue" ? "bg-blue-500" :
-                          p.tee_color === "white" ? "bg-white border border-gray-300" : "bg-gray-400"
-                        }`} />
+                        · <span className={`w-2 h-2 rounded-full inline-block ${p.tee_color === "red" ? "bg-red-500" : p.tee_color === "yellow" ? "bg-yellow-400" : p.tee_color === "blue" ? "bg-blue-500" : "bg-gray-400"}`} />
                         {p.tee_name}
                         {p.tee_id && teeDistances[p.tee_id]?.[hole.id] && <span>{teeDistances[p.tee_id][hole.id]} m</span>}
-                      </span>
-                    )}
-                    {format === "matchplay" && p.team && (
-                      <span className={`text-xs font-bold ${p.team === "red" ? "text-red-600" : "text-blue-600"}`}>
-                        {p.team === "red" ? "· RÖTT" : "· BLÅTT"}
                       </span>
                     )}
                   </div>
@@ -678,25 +666,100 @@ export default function ScorecardPage() {
                 <div className="flex flex-col items-end gap-1 shrink-0 ml-2">
                   <div className="flex items-center gap-1.5">
                     {badge && <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${badge.cls}`}>{badge.label}</span>}
-                    {stablePts !== null && (
-                      <span className="text-xs font-bold bg-green-100 text-green-700 px-2 py-0.5 rounded-full">{stablePts}p</span>
-                    )}
+                    {stablePts !== null && <span className="text-xs font-bold bg-green-100 text-green-700 px-2 py-0.5 rounded-full">{stablePts}p</span>}
                   </div>
-                  <p className="text-xs text-gray-400">
-                    {total > 0 ? `${diff > 0 ? "+" : ""}${diff === 0 ? "par" : diff}` : "—"} · {totalSt}p tot
-                  </p>
+                  <p className="text-xs text-gray-400">{total > 0 ? `${diff > 0 ? "+" : ""}${diff === 0 ? "par" : diff}` : "—"} · {totalSt}p tot</p>
                 </div>
               </div>
               <div className="flex items-center gap-4">
                 <button onClick={() => saveScore(p.user_id, Math.max(1, val - 1))} className="w-12 h-12 rounded-full bg-gray-100 text-2xl font-bold text-gray-700 flex items-center justify-center">−</button>
-                <div className="flex-1 text-center">
-                  <span className="text-4xl font-bold text-gray-900">{val || "—"}</span>
-                </div>
+                <div className="flex-1 text-center"><span className="text-4xl font-bold text-gray-900">{val || "—"}</span></div>
                 <button onClick={() => saveScore(p.user_id, val + 1)} className="w-12 h-12 rounded-full bg-green-700 text-2xl font-bold text-white flex items-center justify-center">+</button>
               </div>
             </div>
           );
         })}
+
+        {/* Matchplay: compact side-by-side layout */}
+        {format === "matchplay" && (() => {
+          const redPs = players.filter((p) => p.team === "red");
+          const bluePs = players.filter((p) => p.team === "blue");
+
+          // Live match score up to current hole
+          let liveRedUp = 0;
+          for (let i = 0; i < currentHole; i++) {
+            const h = holes[i];
+            const bestNet = (tp: Player[]) => Math.min(...tp.map((p) => {
+              const g = scores[h.id]?.[p.user_id];
+              return g ? g - strokesOnHole(courseHcp(p.handicap_index), h.stroke_index) : Infinity;
+            }));
+            const r = bestNet(redPs), b = bestNet(bluePs);
+            if (isFinite(r) || isFinite(b)) {
+              if (r < b) liveRedUp++;
+              else if (b < r) liveRedUp--;
+            }
+          }
+          const holesLeft = holes.length - currentHole - 1;
+          const statusLabel = liveRedUp === 0 ? "All square" : liveRedUp > 0 ? `Rött ${liveRedUp} up` : `Blått ${-liveRedUp} up`;
+          const statusCls = liveRedUp > 0 ? "bg-red-600" : liveRedUp < 0 ? "bg-blue-600" : "bg-gray-600";
+
+          const teamCard = (tPlayers: Player[], color: "red" | "blue") => {
+            const isRed = color === "red";
+            const borderCls = isRed ? "border-red-200 bg-red-50" : "border-blue-200 bg-blue-50";
+            const labelCls = isRed ? "text-red-600" : "text-blue-600";
+            const btnCls = isRed ? "bg-red-600" : "bg-blue-600";
+            return (
+              <div className={`flex-1 border-2 ${borderCls} rounded-2xl p-3 space-y-3`}>
+                <p className={`text-xs font-bold ${labelCls} uppercase tracking-wide`}>{isRed ? "Rött" : "Blått"}</p>
+                {tPlayers.map((p) => {
+                  const val = scores[hole.id]?.[p.user_id] ?? 0;
+                  const hcp = courseHcp(p.handicap_index);
+                  const extra = strokesOnHole(hcp, hole.stroke_index);
+                  const badge = val > 0 ? scoreBadge(val, hole.par) : null;
+                  const { total, diff } = totalScore(p.user_id);
+                  return (
+                    <div key={p.user_id}>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div>
+                          <p className="text-xs font-semibold text-gray-800 leading-tight">{p.name.split(" ")[0]}</p>
+                          <p className="text-xs text-gray-400">HCP {hcp}{extra > 0 ? ` · +${extra}` : ""}</p>
+                        </div>
+                        <div className="text-right">
+                          {badge && <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${badge.cls}`}>{badge.label}</span>}
+                          <p className={`text-xs font-medium mt-0.5 ${diff > 0 ? "text-red-500" : diff < 0 ? "text-green-600" : "text-gray-400"}`}>
+                            {total > 0 ? `${diff > 0 ? "+" : ""}${diff === 0 ? "par" : diff}` : "—"}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => saveScore(p.user_id, Math.max(1, val - 1))}
+                          className="w-9 h-9 rounded-full bg-white shadow text-xl font-bold text-gray-600 flex items-center justify-center">−</button>
+                        <div className="flex-1 text-center">
+                          <span className="text-3xl font-bold text-gray-900">{val || "—"}</span>
+                        </div>
+                        <button onClick={() => saveScore(p.user_id, val + 1)}
+                          className={`w-9 h-9 rounded-full ${btnCls} shadow text-xl font-bold text-white flex items-center justify-center`}>+</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          };
+
+          return (
+            <div className="space-y-3">
+              <div className={`${statusCls} text-white rounded-2xl px-4 py-2.5 flex items-center justify-between`}>
+                <p className="font-bold text-sm">{statusLabel}</p>
+                <p className="text-xs opacity-75">{holesLeft} hål kvar</p>
+              </div>
+              <div className="flex gap-2">
+                {teamCard(redPs, "red")}
+                {teamCard(bluePs, "blue")}
+              </div>
+            </div>
+          );
+        })()}
 
         {saving && <p className="text-xs text-center text-gray-400">Sparar...</p>}
 

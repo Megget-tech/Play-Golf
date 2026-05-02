@@ -226,7 +226,7 @@ function NewRoundInner() {
   const availableGuests = savedGuests.filter((g) => !players.find((p) => p.id === g.id));
 
   return (
-    <div className="min-h-screen bg-green-50">
+    <div className="min-h-screen bg-green-100">
       <header className="bg-green-800 text-white px-4 py-4">
         <button onClick={() => router.back()} className="text-sm opacity-75 mb-1">← Tillbaka</button>
         <h1 className="text-lg font-bold">Ny runda</h1>
@@ -238,7 +238,7 @@ function NewRoundInner() {
         <section>
           <h2 className="text-xs font-semibold text-gray-500 uppercase mb-2">Bana</h2>
           {courseName ? (
-            <div className="bg-white rounded-2xl shadow px-4 py-3 flex items-center justify-between">
+            <div className="bg-white rounded-2xl shadow-md px-4 py-3 flex items-center justify-between">
               <div>
                 <p className="font-semibold text-gray-800">{courseName}</p>
                 <p className="text-xs text-gray-400">Startar hål {startingHole}</p>
@@ -251,7 +251,7 @@ function NewRoundInner() {
               </button>
             </div>
           ) : (
-            <button onClick={() => router.push("/courses")} className="w-full bg-white rounded-2xl shadow px-4 py-3 text-left text-green-700 font-medium text-sm">
+            <button onClick={() => router.push("/courses")} className="w-full bg-white rounded-2xl shadow-md px-4 py-3 text-left text-green-700 font-medium text-sm">
               + Välj bana →
             </button>
           )}
@@ -260,7 +260,7 @@ function NewRoundInner() {
         {/* Format */}
         <section>
           <h2 className="text-xs font-semibold text-gray-500 uppercase mb-2">Format</h2>
-          <div className="bg-white rounded-2xl shadow px-4 py-1">
+          <div className="bg-white rounded-2xl shadow-md px-4 py-1">
             <select
               value={format}
               onChange={(e) => setFormat(e.target.value)}
@@ -278,7 +278,7 @@ function NewRoundInner() {
           <h2 className="text-xs font-semibold text-gray-500 uppercase mb-2">Spelare</h2>
           <ul className="space-y-2 mb-3">
             {players.map((p) => (
-              <li key={p.id} className="bg-white rounded-2xl shadow px-4 py-3 space-y-3">
+              <li key={p.id} className="bg-white rounded-2xl shadow-md px-4 py-3 space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="font-semibold text-sm text-gray-800">
@@ -409,7 +409,7 @@ function NewRoundInner() {
 
           {/* Manual player form */}
           {showManualForm ? (
-            <div className="bg-white rounded-2xl shadow px-4 py-4 space-y-3">
+            <div className="bg-white rounded-2xl shadow-md px-4 py-4 space-y-3">
               <p className="text-sm font-semibold text-gray-700">Ny spelare</p>
               <input type="text" placeholder="Namn *" value={manualName} onChange={(e) => setManualName(e.target.value)}
                 className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />

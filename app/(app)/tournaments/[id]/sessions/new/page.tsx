@@ -112,7 +112,7 @@ export default function NewSessionPage() {
   if (loading) return <div className="min-h-screen flex items-center justify-center text-gray-400">Laddar...</div>;
 
   return (
-    <div className="min-h-screen bg-green-50 pb-8">
+    <div className="min-h-screen bg-green-100 pb-8">
       <header className="bg-green-800 text-white px-4 py-4">
         <button onClick={() => router.back()} className="text-sm opacity-75 mb-1">← Tillbaka</button>
         <h1 className="text-lg font-bold">Ny session</h1>
@@ -213,7 +213,7 @@ export default function NewSessionPage() {
             <h2 className="text-xs font-semibold text-gray-500 uppercase mb-2">Matcher ({matches.length})</h2>
             <ul className="space-y-2">
               {matches.map((m, i) => (
-                <li key={i} className="bg-white rounded-2xl shadow px-4 py-3 flex items-center gap-2">
+                <li key={i} className="bg-white rounded-2xl shadow-md px-4 py-3 flex items-center gap-2">
                   <span className="text-red-600 text-sm flex-1">{m.redPlayers.map((p) => p.name).join(" & ")}</span>
                   <span className="text-gray-400 text-xs">vs</span>
                   <span className="text-blue-600 text-sm flex-1 text-right">{m.bluePlayers.map((p) => p.name).join(" & ")}</span>

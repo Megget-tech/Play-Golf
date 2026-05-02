@@ -37,7 +37,7 @@ export default function NewTournamentPage() {
   }
 
   return (
-    <div className="min-h-screen bg-green-50">
+    <div className="min-h-screen bg-green-100">
       <header className="bg-green-800 text-white px-4 py-4">
         <button onClick={() => router.back()} className="text-sm opacity-75 mb-1">← Tillbaka</button>
         <h1 className="text-lg font-bold">Ny turnering</h1>

@@ -110,7 +110,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-green-50">
+    <div className="min-h-screen bg-green-100">
       <header className="bg-green-800 text-white px-4 pt-4 pb-5">
         <div className="flex items-center justify-between mb-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -130,7 +130,7 @@ export default function DashboardPage() {
         {/* Quick actions */}
         <div className="grid grid-cols-2 gap-3">
           <Link href="/rounds/new"
-            className="col-span-2 bg-green-700 text-white rounded-2xl shadow p-4 flex items-center gap-3 hover:bg-green-800 transition-colors">
+            className="col-span-2 bg-green-700 text-white rounded-2xl shadow-md p-4 flex items-center gap-3 hover:bg-green-800 transition-colors">
             <span className="text-3xl">⛳</span>
             <div>
               <p className="font-bold text-base">Ny runda</p>
@@ -138,13 +138,13 @@ export default function DashboardPage() {
             </div>
           </Link>
           <Link href="/tournaments/new"
-            className="bg-white rounded-2xl shadow p-4 flex flex-col gap-1.5 hover:shadow-md transition-shadow">
+            className="bg-white rounded-2xl shadow-md p-4 flex flex-col gap-1.5 hover:shadow-md transition-shadow">
             <span className="text-2xl">🏆</span>
             <p className="font-semibold text-gray-800 text-sm">Ny turnering</p>
             <p className="text-xs text-gray-500">Scramble, Ryder Cup</p>
           </Link>
           <Link href="/tournaments"
-            className="bg-white rounded-2xl shadow p-4 flex flex-col gap-1.5 hover:shadow-md transition-shadow">
+            className="bg-white rounded-2xl shadow-md p-4 flex flex-col gap-1.5 hover:shadow-md transition-shadow">
             <span className="text-2xl">📋</span>
             <p className="font-semibold text-gray-800 text-sm">Turneringar</p>
             <p className="text-xs text-gray-500">Dina aktiva tävlingar</p>

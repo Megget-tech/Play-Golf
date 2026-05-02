@@ -78,7 +78,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-green-50">
+    <div className="min-h-screen bg-green-100">
       <header className="bg-green-800 text-white px-4 py-4">
         <h1 className="text-lg font-bold">Min profil</h1>
       </header>
@@ -87,7 +87,7 @@ export default function ProfilePage() {
         {profile ? (
           <>
             {/* Avatar */}
-            <div className="bg-white rounded-2xl shadow px-4 py-5 flex flex-col items-center gap-3">
+            <div className="bg-white rounded-2xl shadow-md px-4 py-5 flex flex-col items-center gap-3">
               <div className="relative">
                 {profile.avatar_url ? (
                   <img
@@ -113,11 +113,11 @@ export default function ProfilePage() {
 
             {/* Stats */}
             <div className="grid grid-cols-2 gap-3">
-              <div className="bg-white rounded-2xl shadow px-4 py-4 text-center">
+              <div className="bg-white rounded-2xl shadow-md px-4 py-4 text-center">
                 <p className="text-3xl font-bold text-green-700">{profile.handicap_index}</p>
                 <p className="text-xs text-gray-500 mt-1">Handicap</p>
               </div>
-              <div className="bg-white rounded-2xl shadow px-4 py-4 text-center">
+              <div className="bg-white rounded-2xl shadow-md px-4 py-4 text-center">
                 <p className="text-3xl font-bold text-green-700">{rounds}</p>
                 <p className="text-xs text-gray-500 mt-1">Spelade rundor</p>
               </div>
@@ -125,7 +125,7 @@ export default function ProfilePage() {
 
             {/* Edit section */}
             {!editing ? (
-              <div className="bg-white rounded-2xl shadow px-4 py-4 space-y-2">
+              <div className="bg-white rounded-2xl shadow-md px-4 py-4 space-y-2">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs text-gray-500">Golf ID</p>
@@ -140,7 +140,7 @@ export default function ProfilePage() {
                 </div>
               </div>
             ) : (
-              <div className="bg-white rounded-2xl shadow px-4 py-4 space-y-4">
+              <div className="bg-white rounded-2xl shadow-md px-4 py-4 space-y-4">
                 <div>
                   <label className="text-xs font-semibold text-gray-500 uppercase">Handicap</label>
                   <input

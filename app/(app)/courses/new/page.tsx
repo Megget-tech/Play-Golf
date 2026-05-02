@@ -43,7 +43,7 @@ export default function NewCoursePage() {
   }
 
   return (
-    <div className="min-h-screen bg-green-50">
+    <div className="min-h-screen bg-green-100">
       <header className="bg-green-800 text-white px-4 py-4">
         <button onClick={() => router.back()} className="text-sm opacity-75 mb-1">← Tillbaka</button>
         <h1 className="text-lg font-bold">Skapa bana manuellt</h1>
@@ -94,7 +94,7 @@ export default function NewCoursePage() {
             <label className="text-xs font-semibold text-gray-500 uppercase">Par per hål</label>
             <span className="text-xs text-gray-400">Totalt: par {pars.reduce((a,b)=>a+b,0)}</span>
           </div>
-          <div className="bg-white rounded-2xl shadow p-3 grid grid-cols-3 gap-2">
+          <div className="bg-white rounded-2xl shadow-md p-3 grid grid-cols-3 gap-2">
             {pars.map((par, i) => (
               <div key={i} className="flex items-center gap-1">
                 <span className="text-xs text-gray-400 w-6">H{i+1}</span>

@@ -203,7 +203,7 @@ export default function TournamentPage() {
   // ── Ryder Cup UI ──────────────────────────────────────────────────────────
   if (tournament.format === "ryder_cup") {
     return (
-      <div className="min-h-screen bg-green-50 pb-8">
+      <div className="min-h-screen bg-green-100 pb-8">
         <header className="bg-green-800 text-white px-4 py-4">
           <button onClick={() => router.back()} className="text-sm opacity-75 mb-1">← Tillbaka</button>
           <h1 className="text-lg font-bold">{tournament.name}</h1>
@@ -233,7 +233,7 @@ export default function TournamentPage() {
           )}
 
           {/* Scoreboard */}
-          <div className="bg-white rounded-2xl shadow p-4">
+          <div className="bg-white rounded-2xl shadow-md p-4">
             <div className="flex items-stretch gap-3">
               <div className={`flex-1 rounded-xl p-3 text-center ${redPoints > bluePoints ? "bg-red-600 text-white" : "bg-red-50"}`}>
                 <p className={`text-xs font-bold mb-1 ${redPoints > bluePoints ? "text-red-100" : "text-red-600"}`}>RÖTT</p>
@@ -265,7 +265,7 @@ export default function TournamentPage() {
                 const color = team === "red" ? "text-red-600 bg-red-50 border-red-200" : "text-blue-600 bg-blue-50 border-blue-200";
                 const btnColor = team === "red" ? "text-red-600" : "text-blue-600";
                 return (
-                  <div key={team} className={`bg-white rounded-2xl shadow p-3 border ${color.split(" ").slice(2).join(" ")}`}>
+                  <div key={team} className={`bg-white rounded-2xl shadow-md p-3 border ${color.split(" ").slice(2).join(" ")}`}>
                     <p className={`text-xs font-bold mb-2 ${color.split(" ")[0]}`}>{label}</p>
                     <ul className="space-y-1 mb-2">
                       {members.map((p) => (
@@ -384,7 +384,7 @@ export default function TournamentPage() {
   }
 
   return (
-    <div className="min-h-screen bg-green-50">
+    <div className="min-h-screen bg-green-100">
       <header className="bg-green-800 text-white px-4 py-4">
         <button onClick={() => router.back()} className="text-sm opacity-75 mb-1">← Tillbaka</button>
         <h1 className="text-lg font-bold">{tournament.name}</h1>
@@ -392,7 +392,7 @@ export default function TournamentPage() {
       </header>
       <main className="px-4 py-4 max-w-lg mx-auto space-y-6">
         {isMatchplay && (
-          <div className="bg-white rounded-2xl shadow p-4">
+          <div className="bg-white rounded-2xl shadow-md p-4">
             <h2 className="text-xs font-semibold text-gray-500 uppercase mb-3">Lagställning</h2>
             <div className="flex items-center gap-3">
               <div className="flex-1 bg-red-50 rounded-xl p-3 text-center">
@@ -412,7 +412,7 @@ export default function TournamentPage() {
             <h2 className="text-xs font-semibold text-gray-500 uppercase mb-2">Resultat</h2>
             <ul className="space-y-2">
               {standings.map((s, i) => (
-                <li key={s.user_id} className="bg-white rounded-2xl shadow px-4 py-3 flex items-center gap-3">
+                <li key={s.user_id} className="bg-white rounded-2xl shadow-md px-4 py-3 flex items-center gap-3">
                   <span className="text-lg font-bold text-gray-400 w-6 text-center">{i + 1}</span>
                   <div className="flex-1">
                     <p className="font-semibold text-gray-800">{s.name}</p>
@@ -438,7 +438,7 @@ export default function TournamentPage() {
             <ul className="space-y-2">
               {rounds.map((r) => (
                 <li key={r.id}>
-                  <Link href={`/rounds/${r.id}`} className="flex items-center justify-between bg-white rounded-2xl shadow px-4 py-3">
+                  <Link href={`/rounds/${r.id}`} className="flex items-center justify-between bg-white rounded-2xl shadow-md px-4 py-3">
                     <div>
                       <p className="font-semibold text-sm text-gray-800">{r.courses?.name ?? "Okänd bana"}</p>
                       <p className="text-xs text-gray-400">{new Date(r.date).toLocaleDateString("sv-SE")}</p>

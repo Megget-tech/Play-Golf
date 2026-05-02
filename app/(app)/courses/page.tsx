@@ -101,7 +101,7 @@ function CoursesInner() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setPendingCourse(isPending ? null : course)}
-            className="flex-1 flex items-center justify-between bg-white rounded-2xl shadow px-4 py-3 text-left hover:shadow-md transition-shadow"
+            className="flex-1 flex items-center justify-between bg-white rounded-2xl shadow-md px-4 py-3 text-left hover:shadow-md transition-shadow"
           >
             <div>
               <p className="font-semibold text-gray-800 text-sm">{course.name}</p>
@@ -143,7 +143,7 @@ function CoursesInner() {
   const showDefault = query.length < 2;
 
   return (
-    <div className="min-h-screen bg-green-50">
+    <div className="min-h-screen bg-green-100">
       <header className="bg-green-800 text-white px-4 py-4 sticky top-0 z-10">
         <h1 className="text-lg font-bold mb-3">Sök golfbana</h1>
         <input
