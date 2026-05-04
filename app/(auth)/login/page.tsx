@@ -10,6 +10,20 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [guestLoading, setGuestLoading] = useState(false);
+
+  async function loginAsGuest() {
+    setGuestLoading(true);
+    setError("");
+    const supabase = createClient();
+    const { error } = await supabase.auth.signInAnonymously();
+    if (error) {
+      setError(error.message);
+      setGuestLoading(false);
+    } else {
+      router.push("/guest-setup");
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -65,6 +79,20 @@ export default function LoginPage() {
             </Link>
           </div>
         </form>
+        <div className="mt-4 space-y-3">
+          <div className="relative flex items-center">
+            <div className="flex-grow border-t border-gray-200" />
+            <span className="mx-3 text-xs text-gray-400">eller</span>
+            <div className="flex-grow border-t border-gray-200" />
+          </div>
+          <button
+            onClick={loginAsGuest}
+            disabled={guestLoading}
+            className="w-full border border-gray-300 text-gray-600 rounded-lg py-2 text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
+          >
+            {guestLoading ? "Startar..." : "Spela som gäst"}
+          </button>
+        </div>
         <p className="mt-4 text-sm text-center text-gray-500">
           Inget konto?{" "}
           <Link href="/signup" className="text-green-700 font-medium">
